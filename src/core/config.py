@@ -1,8 +1,8 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     bot_use_webhook: bool = False
     webhook_url: str = ""
     webhook_secret: str = ""
-    admin_telegram_ids: list[int] = Field(default_factory=list)
+    # NoDecode: без него pydantic-settings пытается JSON-распарсить значение
+    # env-переменной для list[int] ДО field_validator и падает на "123,456"
+    admin_telegram_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     news_channel_url: str = ""
 
     database_url: str

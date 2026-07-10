@@ -14,12 +14,18 @@ async def shutdown(ctx: dict) -> None:
     logger.info("worker_stopped")
 
 
+# arq отказывается стартовать без ни одной зарегистрированной задачи —
+# заглушка до реальных задач (OCR/видео/уведомления) в Фазе 3+.
+async def health_check(ctx: dict) -> str:
+    return "ok"
+
+
 settings = get_settings()
 configure_logging(settings)
 
 
 class WorkerSettings:
-    functions: list = []
+    functions: list = [health_check]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
