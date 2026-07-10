@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import Date, DateTime, ForeignKey, String
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.models.base import Base, TimestampMixin
@@ -44,7 +45,16 @@ class Application(Base, TimestampMixin):
 
     # заполняются в Фазе 3/4
     document_photo_key: Mapped[str | None] = mapped_column(String(255))
+    # номер ВУ (поле 5 бланка, формат "AF 977776")
     document_number: Mapped[str | None] = mapped_column(String(50), unique=True)
+    # ЖСН/IIN (поле 4d) — государственный идентификатор человека, не документа:
+    # ловит повторную регистрацию даже если у человека новый номер ВУ
+    document_iin: Mapped[str | None] = mapped_column(String(12), unique=True, index=True)
+    document_expiry_date: Mapped[dt.date | None] = mapped_column(Date)
+    # сырой ответ OCR-провайдера + распарсенные поля — для аудита и разбора спорных случаев
+    ocr_raw_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # список сработавших эвристик (fio_mismatch, expired, tamper_suspected, ...) для карточки модератора
+    verification_flags: Mapped[list[str] | None] = mapped_column(JSONB)
     video_key: Mapped[str | None] = mapped_column(String(255))
 
     user: Mapped[User] = relationship(back_populates="application")

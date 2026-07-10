@@ -11,6 +11,7 @@ from src.bot.keyboards.registration import (
     phone_request_keyboard,
 )
 from src.bot.keyboards.start import JOIN_CALLBACK
+from src.bot.states.document_states import DocumentStates
 from src.bot.states.registration_states import RegistrationStates
 from src.bot.utils.validators import normalize_phone, validate_city, validate_full_name
 from src.core.logging import get_logger
@@ -27,8 +28,7 @@ logger = get_logger(__name__)
 _STATUS_MESSAGES: dict[ApplicationStatus, str] = {
     ApplicationStatus.DRAFT: "Ваша регистрация ещё не завершена — начните заново.",
     ApplicationStatus.PENDING_DOCUMENT: (
-        "Анкета уже принята. Следующий шаг — загрузка фото водительского удостоверения, "
-        "он появится в одном из следующих обновлений бота."
+        "Анкета уже принята. Пришлите, пожалуйста, фото водительского удостоверения."
     ),
     ApplicationStatus.PENDING_OCR: "Ваш документ проверяется, ожидайте.",
     ApplicationStatus.DOCUMENT_FLAGGED: "Ваш документ на дополнительной проверке у модератора.",
@@ -50,6 +50,11 @@ async def on_join(callback: CallbackQuery, state: FSMContext, db_session: AsyncS
     existing = await get_application_by_user_id(db_session, user.id)
     if existing is not None:
         await callback.message.answer(_STATUS_MESSAGES[existing.status])
+        if existing.status in (
+            ApplicationStatus.PENDING_DOCUMENT,
+            ApplicationStatus.REUPLOAD_REQUESTED,
+        ):
+            await state.set_state(DocumentStates.waiting_photo)
         return
 
     await state.set_state(RegistrationStates.waiting_full_name)
@@ -158,17 +163,17 @@ async def on_consent_accept(
         )
     except IntegrityError:
         await db_session.rollback()
+        await state.clear()
         await callback.message.answer(
             "Этот номер телефона уже зарегистрирован в системе. "
             "Если это ошибка, свяжитесь с администратором проекта."
         )
         return
-    finally:
-        await state.clear()
 
+    await state.set_state(DocumentStates.waiting_photo)
     await callback.message.answer(
-        "Спасибо! Анкета сохранена. Следующий шаг — загрузка фото водительского удостоверения, "
-        "он появится в одном из следующих обновлений бота."
+        "Спасибо! Анкета сохранена. Пришлите, пожалуйста, фото водительского удостоверения "
+        "(изображением или файлом-картинкой)."
     )
 
 

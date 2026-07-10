@@ -1,0 +1,194 @@
+from typing import Any
+
+from aiogram import Bot
+from aiogram.fsm.storage.base import StorageKey
+from aiogram.fsm.storage.redis import RedisStorage
+from redis.asyncio import Redis
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.bot.states.document_states import DocumentStates
+from src.core.config import get_settings
+from src.core.logging import get_logger
+from src.db.models.application import Application
+from src.db.models.user import User
+from src.db.session import async_session_factory
+from src.services.antifraud.image_forensics import analyze_image
+from src.services.ocr.google_vision import GoogleVisionOCR
+from src.services.ocr.parser import ParsedDriverLicense, parse_driver_license
+from src.services.storage.s3_storage import S3Storage
+from src.services.verification.document_validator import (
+    birth_date_from_iin,
+    is_expired,
+    parse_document_date,
+    validate_iin_format,
+    validate_license_number,
+)
+from src.services.verification.fio_matcher import fio_matches
+from src.shared.enums import ApplicationStatus
+
+logger = get_logger(__name__)
+
+
+async def _reset_fsm_to_waiting_photo(bot: Bot, redis_url: str, telegram_id: int) -> None:
+    """Бот уже очистил FSM-состояние сразу после постановки задачи в очередь (см.
+    document.py) — если OCR технически не удался (не решение модератора, а именно
+    сбой распознавания), нужно вручную вернуть пользователя в состояние ожидания
+    фото в отдельном процессе воркера, иначе повторно присланное фото будет молча
+    проигнорировано ботом (ни один хендлер не подписан на этот апдейт).
+    """
+    redis_client: Redis = Redis.from_url(redis_url)
+    try:
+        storage = RedisStorage(redis=redis_client)
+        key = StorageKey(bot_id=bot.id, chat_id=telegram_id, user_id=telegram_id)
+        await storage.set_state(key, DocumentStates.waiting_photo)
+    finally:
+        await redis_client.aclose()
+
+
+async def _find_duplicate_document(
+    session: AsyncSession, application_id: int, license_number: str | None, iin: str | None
+) -> Application | None:
+    conditions = []
+    if license_number:
+        conditions.append(Application.document_number == license_number)
+    if iin:
+        conditions.append(Application.document_iin == iin)
+    if not conditions:
+        return None
+
+    result = await session.execute(
+        select(Application).where(Application.id != application_id, or_(*conditions))
+    )
+    return result.scalar_one_or_none()
+
+
+def _build_ocr_raw_data(raw_text: str, parsed: ParsedDriverLicense) -> dict[str, Any]:
+    return {
+        "raw_text": raw_text,
+        "parsed": {
+            "surname": parsed.surname,
+            "given_names": parsed.given_names,
+            "birth_date": parsed.birth_date,
+            "birth_place": parsed.birth_place,
+            "issue_date": parsed.issue_date,
+            "expiry_date": parsed.expiry_date,
+            "issuing_authority": parsed.issuing_authority,
+            "iin": parsed.iin,
+            "license_number": parsed.license_number,
+        },
+    }
+
+
+async def _notify_user(bot: Bot, telegram_id: int, text: str) -> None:
+    try:
+        await bot.send_message(telegram_id, text)
+    except Exception:
+        logger.exception("ocr_task_notify_failed", telegram_id=telegram_id)
+
+
+async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None:
+    settings = get_settings()
+    storage = S3Storage(settings)
+    bot: Bot = ctx["bot"]
+
+    async with async_session_factory() as session:
+        application = await session.get(Application, application_id)
+        if application is None:
+            logger.warning("ocr_task_application_not_found", application_id=application_id)
+            return
+
+        user = await session.get(User, application.user_id)
+        if user is None:
+            logger.warning("ocr_task_user_not_found", application_id=application_id)
+            return
+
+        if application.document_photo_key is None:
+            logger.warning("ocr_task_no_photo_key", application_id=application_id)
+            return
+
+        try:
+            # конструктор тоже внутри try: живой аккаунт Google Vision может быть
+            # недоступен (нет креденциалов, квота, сеть) — это тот же класс ошибок,
+            # что и сбой самого распознавания, и должен вести к тому же fallback
+            image_bytes = await storage.download(application.document_photo_key)
+            ocr_provider = GoogleVisionOCR()
+            raw_text = await ocr_provider.extract_text(image_bytes)
+        except Exception:
+            logger.exception("ocr_task_extraction_failed", application_id=application_id)
+            application.status = ApplicationStatus.PENDING_DOCUMENT
+            await session.commit()
+            await _reset_fsm_to_waiting_photo(bot, settings.redis_url, user.telegram_id)
+            await _notify_user(
+                bot,
+                user.telegram_id,
+                "Не удалось проверить документ — попробуйте прислать фото ещё раз. "
+                "Убедитесь, что все поля видны и текст не размыт.",
+            )
+            return
+
+        parsed = parse_driver_license(raw_text)
+        flags: list[str] = []
+
+        license_number = validate_license_number(parsed.license_number or "")
+        iin = validate_iin_format(parsed.iin or "")
+        expiry_date = parse_document_date(parsed.expiry_date or "")
+
+        if license_number is None:
+            flags.append("license_number_not_recognized")
+        if iin is None:
+            flags.append("iin_not_recognized")
+        if expiry_date is None:
+            flags.append("expiry_date_not_recognized")
+        elif is_expired(expiry_date):
+            flags.append("document_expired")
+
+        if iin and parsed.birth_date:
+            iin_birth_date = birth_date_from_iin(iin)
+            card_birth_date = parse_document_date(parsed.birth_date)
+            if iin_birth_date and card_birth_date and iin_birth_date != card_birth_date:
+                flags.append("iin_birth_date_mismatch")
+
+        if not fio_matches(application.full_name, parsed.full_name):
+            flags.append("fio_mismatch")
+
+        flags.extend(analyze_image(image_bytes))
+
+        duplicate = await _find_duplicate_document(session, application.id, license_number, iin)
+        if duplicate is not None:
+            flags.append("duplicate_document")
+            license_number = None
+            iin = None
+
+        application.document_number = license_number
+        application.document_iin = iin
+        application.document_expiry_date = expiry_date
+        application.ocr_raw_data = _build_ocr_raw_data(raw_text, parsed)
+        application.verification_flags = flags
+        application.status = (
+            ApplicationStatus.DOCUMENT_FLAGGED if flags else ApplicationStatus.PENDING_VIDEO
+        )
+
+        await session.commit()
+
+        if duplicate is not None:
+            await _notify_user(
+                bot,
+                user.telegram_id,
+                "Этот документ уже зарегистрирован в системе под другой заявкой. "
+                "Если это ошибка, свяжитесь с администратором проекта.",
+            )
+        elif flags:
+            await _notify_user(
+                bot,
+                user.telegram_id,
+                "Документ получен, но потребовалась дополнительная ручная проверка — "
+                "мы свяжемся с вами после решения модератора.",
+            )
+        else:
+            await _notify_user(
+                bot,
+                user.telegram_id,
+                "Документ проверен и принят! Следующий шаг — загрузка видео-визитки, "
+                "он появится в одном из следующих обновлений бота.",
+            )

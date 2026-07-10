@@ -6,15 +6,18 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
+from arq import ArqRedis, create_pool
+from arq.connections import RedisSettings
 from redis.asyncio import Redis
 
-from src.bot.handlers import admin, registration, start
+from src.bot.handlers import admin, document, registration, start
 from src.bot.middlewares.db_session import DbSessionMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
 from src.core.config import Settings, get_settings
 from src.core.logging import configure_logging, get_logger
 from src.db.session import async_session_factory
+from src.services.storage.s3_storage import S3Storage
 
 logger = get_logger(__name__)
 
@@ -22,9 +25,13 @@ WEBHOOK_PATH = "/webhook"
 WEBHOOK_SERVER_PORT = 8080
 
 
-def create_dispatcher(settings: Settings, redis: Redis) -> Dispatcher:
+def create_dispatcher(
+    settings: Settings, redis: Redis, storage: S3Storage, arq_pool: ArqRedis
+) -> Dispatcher:
     dispatcher = Dispatcher(storage=RedisStorage(redis=redis))
     dispatcher["settings"] = settings
+    dispatcher["storage"] = storage
+    dispatcher["arq_pool"] = arq_pool
 
     dispatcher.update.middleware(LoggingMiddleware())
     dispatcher.update.middleware(ThrottlingMiddleware(redis=redis))
@@ -32,6 +39,7 @@ def create_dispatcher(settings: Settings, redis: Redis) -> Dispatcher:
 
     dispatcher.include_router(start.router)
     dispatcher.include_router(registration.router)
+    dispatcher.include_router(document.router)
     dispatcher.include_router(admin.router)
     return dispatcher
 
@@ -74,7 +82,10 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     redis: Redis = Redis.from_url(settings.redis_url)
-    dispatcher = create_dispatcher(settings, redis)
+    storage = S3Storage(settings)
+    await storage.ensure_bucket_exists()
+    arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    dispatcher = create_dispatcher(settings, redis, storage, arq_pool)
 
     me = await bot.get_me()
     logger.info(
@@ -90,6 +101,7 @@ async def main() -> None:
         else:
             await _run_polling(bot, dispatcher)
     finally:
+        await arq_pool.close()
         await redis.aclose()
         await bot.session.close()
 
