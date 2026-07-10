@@ -3,11 +3,64 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
+from redis.asyncio import Redis
 
-from src.core.config import get_settings
+from src.bot.handlers import admin, start
+from src.bot.middlewares.db_session import DbSessionMiddleware
+from src.bot.middlewares.logging import LoggingMiddleware
+from src.bot.middlewares.throttling import ThrottlingMiddleware
+from src.core.config import Settings, get_settings
 from src.core.logging import configure_logging, get_logger
+from src.db.session import async_session_factory
 
 logger = get_logger(__name__)
+
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_SERVER_PORT = 8080
+
+
+def create_dispatcher(settings: Settings, redis: Redis) -> Dispatcher:
+    dispatcher = Dispatcher()
+    dispatcher["settings"] = settings
+
+    dispatcher.update.middleware(LoggingMiddleware())
+    dispatcher.update.middleware(ThrottlingMiddleware(redis=redis))
+    dispatcher.update.middleware(DbSessionMiddleware(session_factory=async_session_factory))
+
+    dispatcher.include_router(start.router)
+    dispatcher.include_router(admin.router)
+    return dispatcher
+
+
+async def _run_polling(bot: Bot, dispatcher: Dispatcher) -> None:
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dispatcher.start_polling(bot)
+
+
+async def _run_webhook(bot: Bot, dispatcher: Dispatcher, settings: Settings) -> None:
+    await bot.set_webhook(
+        url=settings.webhook_url,
+        secret_token=settings.webhook_secret or None,
+        drop_pending_updates=True,
+    )
+
+    app = web.Application()
+    SimpleRequestHandler(
+        dispatcher=dispatcher,
+        bot=bot,
+        secret_token=settings.webhook_secret or None,
+    ).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dispatcher, bot=bot)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=WEBHOOK_SERVER_PORT)
+    await site.start()
+
+    logger.info("webhook_listening", path=WEBHOOK_PATH, port=WEBHOOK_SERVER_PORT)
+    await asyncio.Event().wait()
 
 
 async def main() -> None:
@@ -18,14 +71,24 @@ async def main() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dispatcher = Dispatcher()
+    redis: Redis = Redis.from_url(settings.redis_url)
+    dispatcher = create_dispatcher(settings, redis)
 
     me = await bot.get_me()
-    logger.info("bot_started", username=me.username, environment=settings.environment)
+    logger.info(
+        "bot_started",
+        username=me.username,
+        environment=settings.environment,
+        mode="webhook" if settings.bot_use_webhook else "polling",
+    )
 
     try:
-        await dispatcher.start_polling(bot)
+        if settings.bot_use_webhook:
+            await _run_webhook(bot, dispatcher, settings)
+        else:
+            await _run_polling(bot, dispatcher)
     finally:
+        await redis.aclose()
         await bot.session.close()
 
 
