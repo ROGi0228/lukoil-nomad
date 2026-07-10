@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ from src.bot.keyboards.registration import (
     PDN_ACCEPT_CALLBACK,
     PDN_DECLINE_CALLBACK,
     pdn_consent_keyboard,
+    phone_request_keyboard,
 )
 from src.bot.keyboards.start import JOIN_CALLBACK
 from src.bot.states.registration_states import RegistrationStates
@@ -67,19 +68,50 @@ async def on_full_name(message: Message, state: FSMContext) -> None:
 
     await state.update_data(full_name=full_name)
     await state.set_state(RegistrationStates.waiting_phone)
-    await message.answer("Введите номер телефона (например: +77071234567):")
+    await message.answer(
+        "Отправьте номер телефона кнопкой ниже или введите его вручную "
+        "(например: +77071234567):",
+        reply_markup=phone_request_keyboard(),
+    )
+
+
+@router.message(RegistrationStates.waiting_phone, F.contact)
+async def on_phone_contact(message: Message, state: FSMContext) -> None:
+    contact = message.contact
+    if contact is None or message.from_user is None or contact.user_id != message.from_user.id:
+        await message.answer(
+            "Пожалуйста, отправьте именно свой номер телефона кнопкой ниже, "
+            "либо введите его вручную:"
+        )
+        return
+
+    phone = normalize_phone(contact.phone_number)
+    if phone is None:
+        await message.answer(
+            "Не удалось распознать номер. Введите его вручную в формате +77071234567:"
+        )
+        return
+
+    await _save_phone_and_continue(message, state, phone)
 
 
 @router.message(RegistrationStates.waiting_phone)
-async def on_phone(message: Message, state: FSMContext) -> None:
+async def on_phone_text(message: Message, state: FSMContext) -> None:
     phone = normalize_phone(message.text or "")
     if phone is None:
-        await message.answer("Не похоже на номер телефона. Введите номер в формате +77071234567:")
+        await message.answer(
+            "Не похоже на номер телефона. Введите номер в формате +77071234567 "
+            "или воспользуйтесь кнопкой «Отправить номер телефона»:"
+        )
         return
 
+    await _save_phone_and_continue(message, state, phone)
+
+
+async def _save_phone_and_continue(message: Message, state: FSMContext, phone: str) -> None:
     await state.update_data(phone=phone)
     await state.set_state(RegistrationStates.waiting_city)
-    await message.answer("Введите город проживания:")
+    await message.answer("Введите город проживания:", reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(RegistrationStates.waiting_city)
