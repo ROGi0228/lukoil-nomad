@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from src.core.config import get_settings
 from src.db.models.base import Base
 
-# сюда добавлять импорт каждой новой модели по мере появления (Фаза 2+),
+# сюда добавлять импорт каждой новой модели по мере появления,
 # иначе Base.metadata не увидит таблицу при автогенерации миграций
+from src.db.models import application, user  # noqa: E402,F401
 
 config = context.config
 

@@ -3,11 +3,12 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 from redis.asyncio import Redis
 
-from src.bot.handlers import admin, start
+from src.bot.handlers import admin, registration, start
 from src.bot.middlewares.db_session import DbSessionMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
@@ -22,7 +23,7 @@ WEBHOOK_SERVER_PORT = 8080
 
 
 def create_dispatcher(settings: Settings, redis: Redis) -> Dispatcher:
-    dispatcher = Dispatcher()
+    dispatcher = Dispatcher(storage=RedisStorage(redis=redis))
     dispatcher["settings"] = settings
 
     dispatcher.update.middleware(LoggingMiddleware())
@@ -30,6 +31,7 @@ def create_dispatcher(settings: Settings, redis: Redis) -> Dispatcher:
     dispatcher.update.middleware(DbSessionMiddleware(session_factory=async_session_factory))
 
     dispatcher.include_router(start.router)
+    dispatcher.include_router(registration.router)
     dispatcher.include_router(admin.router)
     return dispatcher
 

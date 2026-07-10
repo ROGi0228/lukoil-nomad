@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md — Nomad Lukoil Bot
 
-> Статус: Фазы 0–1 (окружение, скелет бота) завершены, выложены в репозиторий и подтверждены живым прогоном в Docker (см. Фазу 1). Дальше — Фаза 2 (регистрация).
+> Статус: Фазы 0–2 (окружение, скелет бота, регистрация) завершены, выложены в репозиторий и подтверждены живым прогоном в Docker (см. Фазы 1–2). Дальше — Фаза 3 (загрузка и проверка водительского удостоверения).
 > Правило проекта: после каждой завершённой задачи чекбокс `☐` меняется на `☑`, документ обновляется первым, код — вторым.
 >
 > **Зафиксированные вводные (от заказчика):**
@@ -193,7 +193,7 @@ nomad-lukoil-bot/
 ☑ Реализовать базовые middlewares (логирование, throttling, db-session)
 ☑ Настроить админ-фильтр (is_admin по списку Telegram ID)
 ```
-Реализовано: `src/bot/handlers/start.py` (`/start`, кнопка «Принять участие» → пока заглушка с сообщением, что регистрация откроется позже — сама регистрация это Фаза 2), `src/bot/handlers/admin.py` (`/admin`, демонстрирует работу фильтра `IsAdmin`), `src/bot/keyboards/start.py`, `src/bot/filters/is_admin.py`, `src/bot/middlewares/{logging,throttling,db_session}.py`, `src/bot/main.py` (единая точка входа с поддержкой polling и webhook через `BOT_USE_WEBHOOK`).
+Реализовано: `src/bot/handlers/start.py` (`/start`), `src/bot/handlers/admin.py` (`/admin`, демонстрирует работу фильтра `IsAdmin`), `src/bot/keyboards/start.py`, `src/bot/filters/is_admin.py`, `src/bot/middlewares/{logging,throttling,db_session}.py`, `src/bot/main.py` (единая точка входа с поддержкой polling и webhook через `BOT_USE_WEBHOOK`). Кнопка «Принять участие» изначально была заглушкой — в Фазе 2 её забрал себе `registration.py`.
 
 **Тестирование:** после установки Docker Desktop прогнали `docker-compose up` целиком локально (postgres/redis/minio/worker/bot) с реальным тестовым ботом `@LukoilNomad_bot`. Golden path подтверждён вживую: `/start` → кнопка «Принять участие» → `/admin` — все три обработаны без ошибок, содержимое ответов совпало с ожидаемым. Alembic-миграция `0001` применена к реальному Postgres (`SELECT * FROM alembic_version` → `0001`).
 
@@ -206,14 +206,23 @@ nomad-lukoil-bot/
 
 ### Фаза 2 — Регистрация
 ```
-☐ Спроектировать модель User и Application в БД
-☐ Реализовать FSM-визард: ввод ФИО
-☐ Реализовать FSM-визард: ввод телефона (валидация формата)
-☐ Реализовать FSM-визард: ввод города
-☐ Реализовать подтверждение согласия на обработку персональных данных
-☐ Сохранение анкеты в БД со статусом draft/pending_document
-☐ Юнит-тесты на валидацию ввода
+☑ Спроектировать модель User и Application в БД
+☑ Реализовать FSM-визард: ввод ФИО
+☑ Реализовать FSM-визард: ввод телефона (валидация формата)
+☑ Реализовать FSM-визард: ввод города
+☑ Реализовать подтверждение согласия на обработку персональных данных
+☑ Сохранение анкеты в БД со статусом draft/pending_document
+☑ Юнит-тесты на валидацию ввода
 ```
+Реализовано: `src/db/models/{user,application}.py` (+ `TimestampMixin` в `base.py`), `src/db/repositories/{user_repository,application_repository}.py`, `src/bot/states/registration_states.py`, `src/bot/keyboards/registration.py`, `src/bot/handlers/registration.py` (визард ФИО → телефон → город → согласие на ПДн → сохранение), `src/bot/utils/validators.py` + `tests/unit/test_validators.py` (20 тестов). `DbSessionMiddleware` дополнен коммитом/роллбэком по факту успеха хендлера (unit-of-work на апдейт), FSM переведён на `RedisStorage` (в Фазе 1 по умолчанию был `MemoryStorage`, что противоречило разделу 1 плана). Защита от повторной регистрации — на двух уровнях: `Application.phone`/`Application.user_id` unique-constraints в БД + прикладная проверка «уже есть анкета» перед стартом визарда.
+
+**Тестирование:** полный цикл прогнан вживую в Docker (после генерации миграции через `alembic revision --autogenerate` против реального Postgres) — `/start` → «Принять участие» → ФИО → телефон → город → согласие → запись в БД, и повторный клик «Принять участие» корректно показывает статус вместо нового визарда. Также прогнаны `pytest` (20/20), `ruff` и `mypy --strict` в одноразовом контейнере `python:3.12-slim` (первый раз, когда mypy реально проверил файлы Фаз 0–1 — раньше это было невозможно из-за отсутствия рабочего Python 3.12 локально).
+
+Живой прогон и линтеры вскрыли ещё 4 бага:
+1. `pydantic-settings`/`NoDecode`-исправление из Фазы 1 работало корректно и здесь не потребовалось трогать.
+2. `arq` в Фазе 1 уже был пофикшен `health_check`-заглушкой — без изменений.
+3. **mypy strict** нашёл 6 проблем в файлах Фаз 0–1, не пойманных на синтаксической проверке: неиспользуемый `# type: ignore` в `config.py`, `no-any-return` в `logging.get_logger` (пофикшено через `cast`), отсутствующие типовые параметры у `dict`/`list` в `worker.py` (`dict[str, Any]`, `list[Any]`).
+4. **SQLAlchemy `Enum(native_enum=False)` по умолчанию хранит `.name`, а не `.value`** — статус в БД сохранялся как `PENDING_DOCUMENT` вместо `pending_document`, расходясь с значениями `ApplicationStatus`, используемыми во всём остальном коде (сообщениях модератору, фильтрах и т.д.). Обнаружено прямым запросом к БД после первого живого теста. Исправлено `values_callable=lambda e: [m.value for m in e]` в `application.py`; миграция пересоздана автогенерацией после фикса, БД пересоздана и регистрация перепройдена — статус теперь `pending_document`.
 
 ### Фаза 3 — Загрузка и проверка водительского удостоверения
 ```
