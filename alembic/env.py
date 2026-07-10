@@ -1,0 +1,54 @@
+import asyncio
+from logging.config import fileConfig
+
+from alembic import context
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from src.core.config import get_settings
+from src.db.models.base import Base
+
+# сюда добавлять импорт каждой новой модели по мере появления (Фаза 2+),
+# иначе Base.metadata не увидит таблицу при автогенерации миграций
+
+config = context.config
+
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+target_metadata = Base.metadata
+
+settings = get_settings()
+config.set_main_option("sqlalchemy.url", settings.database_url)
+
+
+def run_migrations_offline() -> None:
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def _do_run_migrations(connection) -> None:  # type: ignore[no-untyped-def]
+    context.configure(connection=connection, target_metadata=target_metadata)
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+async def run_migrations_online() -> None:
+    connectable: AsyncEngine = create_async_engine(settings.database_url, poolclass=None)
+
+    async with connectable.connect() as connection:
+        await connection.run_sync(_do_run_migrations)
+
+    await connectable.dispose()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    asyncio.run(run_migrations_online())
