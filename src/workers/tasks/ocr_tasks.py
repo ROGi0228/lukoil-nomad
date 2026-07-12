@@ -1,6 +1,7 @@
 from typing import Any
 
 from aiogram import Bot
+from aiogram.fsm.state import State
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
@@ -8,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.states.document_states import DocumentStates
+from src.bot.states.video_states import VideoStates
 from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.db.models.application import Application
@@ -30,18 +32,18 @@ from src.shared.enums import ApplicationStatus
 logger = get_logger(__name__)
 
 
-async def _reset_fsm_to_waiting_photo(bot: Bot, redis_url: str, telegram_id: int) -> None:
+async def _set_fsm_state(bot: Bot, redis_url: str, telegram_id: int, state: State) -> None:
     """Бот уже очистил FSM-состояние сразу после постановки задачи в очередь (см.
-    document.py) — если OCR технически не удался (не решение модератора, а именно
-    сбой распознавания), нужно вручную вернуть пользователя в состояние ожидания
-    фото в отдельном процессе воркера, иначе повторно присланное фото будет молча
-    проигнорировано ботом (ни один хендлер не подписан на этот апдейт).
+    document.py) — воркер работает в отдельном процессе и должен сам выставить нужное
+    состояние по итогам проверки (запросить фото заново или перейти к видео), иначе
+    следующее сообщение пользователя будет молча проигнорировано ботом (ни один
+    хендлер не подписан на апдейт без правильного FSM-состояния).
     """
     redis_client: Redis = Redis.from_url(redis_url)
     try:
         storage = RedisStorage(redis=redis_client)
         key = StorageKey(bot_id=bot.id, chat_id=telegram_id, user_id=telegram_id)
-        await storage.set_state(key, DocumentStates.waiting_photo)
+        await storage.set_state(key, state)
     finally:
         await redis_client.aclose()
 
@@ -118,7 +120,9 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
             logger.exception("ocr_task_extraction_failed", application_id=application_id)
             application.status = ApplicationStatus.PENDING_DOCUMENT
             await session.commit()
-            await _reset_fsm_to_waiting_photo(bot, settings.redis_url, user.telegram_id)
+            await _set_fsm_state(
+                bot, settings.redis_url, user.telegram_id, DocumentStates.waiting_photo
+            )
             await _notify_user(
                 bot,
                 user.telegram_id,
@@ -184,7 +188,9 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
         await session.commit()
 
         if fio_mismatch:
-            await _reset_fsm_to_waiting_photo(bot, settings.redis_url, user.telegram_id)
+            await _set_fsm_state(
+                bot, settings.redis_url, user.telegram_id, DocumentStates.waiting_photo
+            )
             await _notify_user(
                 bot,
                 user.telegram_id,
@@ -207,9 +213,12 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
                 "мы свяжемся с вами после решения модератора.",
             )
         else:
+            await _set_fsm_state(
+                bot, settings.redis_url, user.telegram_id, VideoStates.waiting_video
+            )
             await _notify_user(
                 bot,
                 user.telegram_id,
-                "Документ проверен и принят! Следующий шаг — загрузка видео-визитки, "
-                "он появится в одном из следующих обновлений бота.",
+                "Документ проверен и принят! Пришлите, пожалуйста, видео-визитку "
+                "(коротко расскажите о себе на видео).",
             )

@@ -13,6 +13,7 @@ from src.bot.keyboards.registration import (
 from src.bot.keyboards.start import JOIN_CALLBACK
 from src.bot.states.document_states import DocumentStates
 from src.bot.states.registration_states import RegistrationStates
+from src.bot.states.video_states import VideoStates
 from src.bot.utils.validators import normalize_phone, validate_city, validate_full_name
 from src.core.logging import get_logger
 from src.db.repositories.application_repository import (
@@ -55,6 +56,8 @@ async def on_join(callback: CallbackQuery, state: FSMContext, db_session: AsyncS
             ApplicationStatus.REUPLOAD_REQUESTED,
         ):
             await state.set_state(DocumentStates.waiting_photo)
+        elif existing.status == ApplicationStatus.PENDING_VIDEO:
+            await state.set_state(VideoStates.waiting_video)
         return
 
     await state.set_state(RegistrationStates.waiting_full_name)
