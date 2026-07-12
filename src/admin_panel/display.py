@@ -13,6 +13,19 @@ STATUS_LABELS: dict[ApplicationStatus, str] = {
     ApplicationStatus.REJECTED: "Отклонено",
 }
 
+# CSS modifier suffix (e.g. "status-badge--{value}") used to colour-code statuses
+# consistently across the dashboard cards, table and detail page.
+STATUS_CSS_CLASS: dict[ApplicationStatus, str] = {
+    ApplicationStatus.DRAFT: "neutral",
+    ApplicationStatus.PENDING_DOCUMENT: "waiting",
+    ApplicationStatus.PENDING_OCR: "waiting",
+    ApplicationStatus.DOCUMENT_FLAGGED: "flagged",
+    ApplicationStatus.PENDING_VIDEO: "waiting",
+    ApplicationStatus.PENDING_MODERATION: "waiting",
+    ApplicationStatus.APPROVED: "approved",
+    ApplicationStatus.REJECTED: "rejected",
+}
+
 FLAG_LABELS: dict[str, str] = {
     "license_number_not_recognized": "Номер ВУ не распознан",
     "iin_not_recognized": "ИИН не распознан",
@@ -35,6 +48,10 @@ ACTION_LABELS: dict[ModerationAction, str] = {
 
 def flag_label(flag: str) -> str:
     return FLAG_LABELS.get(flag, flag)
+
+
+def status_css_class(status: ApplicationStatus) -> str:
+    return STATUS_CSS_CLASS.get(status, "neutral")
 
 
 def parse_date(raw: str | None) -> dt.date | None:

@@ -4,8 +4,9 @@
 
 {% block body %}
 <header class="topbar">
-    <span>Nomad Lukoil — админ-панель</span>
+    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
     <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <span class="whoami">{{ admin.username }}</span>
         <button type="submit" class="link-button">Выйти</button>
     </form>
@@ -15,7 +16,7 @@
     <section class="status-cards">
         {% for status_value, label in status_labels.items() %}
         <a
-            class="status-card{% if filters.status == status_value.value %} status-card--active{% endif %}"
+            class="status-card status-card--{{ status_css_class(status_value) }}{% if filters.status == status_value.value %} status-card--active{% endif %}"
             href="/?status={{ status_value.value }}"
         >
             <span class="status-card__count">{{ status_counts[status_value] }}</span>
@@ -43,6 +44,7 @@
 
     <p class="total-count">Всего найдено: {{ total }}</p>
 
+    <div class="table-scroll">
     <table class="applications-table">
         <thead>
             <tr>
@@ -59,7 +61,7 @@
                 <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
                 <td>{{ app.phone }}</td>
                 <td>{{ app.city }}</td>
-                <td>{{ status_labels[app.status] }}</td>
+                <td><span class="status-badge status-badge--{{ status_css_class(app.status) }}">{{ status_labels[app.status] }}</span></td>
                 <td>{{ app.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
             </tr>
             {% else %}
@@ -69,6 +71,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 
     {% if total_pages > 1 %}
     <nav class="pagination">

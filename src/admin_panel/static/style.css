@@ -1,13 +1,79 @@
 :root {
     color-scheme: light dark;
-    --bg: #f5f6f8;
+
+    --bg: #f3f4f7;
     --surface: #ffffff;
-    --text: #1a1d21;
-    --muted: #6b7280;
-    --border: #dfe3e8;
-    --accent: #1a56db;
-    --accent-hover: #163f9e;
-    --danger: #c0392b;
+    --surface-raised: #ffffff;
+    --text: #14171c;
+    --muted: #64748b;
+    --border: #e2e5eb;
+
+    --accent: #2454e6;
+    --accent-hover: #1c40b8;
+    --accent-soft: #eaf0ff;
+
+    --success: #16824a;
+    --success-hover: #106038;
+    --danger: #d1352d;
+    --danger-hover: #ab2a24;
+
+    --secondary-bg: #eef1f6;
+    --secondary-bg-hover: #e2e7f0;
+    --secondary-text: #2a3040;
+    --secondary-border: #d6dbe6;
+
+    --badge-neutral-bg: #eceef2;
+    --badge-neutral-text: #4b5261;
+    --badge-waiting-bg: #fef3c7;
+    --badge-waiting-text: #92600a;
+    --badge-flagged-bg: #ffe4d6;
+    --badge-flagged-text: #a53d0a;
+    --badge-approved-bg: #dcf6e5;
+    --badge-approved-text: #146c37;
+    --badge-rejected-bg: #fbdedc;
+    --badge-rejected-text: #ab2a24;
+
+    --shadow-sm: 0 1px 2px rgba(20, 23, 28, 0.06);
+    --shadow-md: 0 4px 16px rgba(20, 23, 28, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #14161a;
+        --surface: #1c1f26;
+        --surface-raised: #232733;
+        --text: #e7e9ee;
+        --muted: #9aa2b1;
+        --border: #2d323e;
+
+        --accent: #6f95ff;
+        --accent-hover: #90adff;
+        --accent-soft: #202a45;
+
+        --success: #3fce85;
+        --success-hover: #63d99c;
+        --danger: #ff6b64;
+        --danger-hover: #ff8a84;
+
+        --secondary-bg: #262b37;
+        --secondary-bg-hover: #2f3542;
+        --secondary-text: #dfe3ec;
+        --secondary-border: #3a4150;
+
+        --badge-neutral-bg: #2a2f3a;
+        --badge-neutral-text: #c3c9d4;
+        --badge-waiting-bg: #3a3116;
+        --badge-waiting-text: #f2c568;
+        --badge-flagged-bg: #3d2717;
+        --badge-flagged-text: #ff9d63;
+        --badge-approved-bg: #163829;
+        --badge-approved-text: #5fe0a0;
+        --badge-rejected-bg: #3a1e1c;
+        --badge-rejected-text: #ff8a84;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+        --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
 }
 
 * {
@@ -19,34 +85,47 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg);
     color: var(--text);
+    -webkit-font-smoothing: antialiased;
 }
+
+a {
+    color: var(--accent);
+}
+
+h1, h2 {
+    color: var(--text);
+}
+
+/* ---------- Auth page ---------- */
 
 .auth-page {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: var(--bg);
 }
 
 .auth-form {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 2rem;
+    border-radius: 14px;
+    padding: 2.25rem 2rem;
     width: 100%;
-    max-width: 320px;
+    max-width: 340px;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    box-shadow: var(--shadow-md);
 }
 
 .auth-form h1 {
     margin: 0 0 0.25rem;
-    font-size: 1.25rem;
+    font-size: 1.35rem;
 }
 
 .auth-form .subtitle {
-    margin: 0 0 1rem;
+    margin: 0 0 1.25rem;
     color: var(--muted);
     font-size: 0.9rem;
 }
@@ -58,20 +137,29 @@ body {
 }
 
 .auth-form input {
-    padding: 0.6rem 0.7rem;
+    padding: 0.65rem 0.75rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 1rem;
+    background: var(--surface);
+    color: var(--text);
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .auth-form button {
-    margin-top: 1.25rem;
-    padding: 0.7rem;
+    margin-top: 1.5rem;
+    padding: 0.75rem;
     border: none;
     border-radius: 8px;
     background: var(--accent);
     color: #fff;
     font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
 }
 
@@ -85,6 +173,8 @@ body {
     margin: 0;
 }
 
+/* ---------- Topbar ---------- */
+
 .topbar {
     display: flex;
     align-items: center;
@@ -92,6 +182,29 @@ body {
     padding: 1rem 1.5rem;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 600;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.brand__mark {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+
+.brand__sep {
+    color: var(--muted);
+    font-weight: 400;
 }
 
 .topbar form {
@@ -114,9 +227,18 @@ body {
     padding: 0;
 }
 
-.content {
-    padding: 1.5rem;
+.link-button:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
 }
+
+.content {
+    padding: 1.75rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* ---------- Status cards ---------- */
 
 .status-cards {
     display: flex;
@@ -129,13 +251,21 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    padding: 0.75rem 1rem;
+    padding: 0.85rem 1.1rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     text-decoration: none;
     color: var(--text);
-    min-width: 120px;
+    min-width: 130px;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    border-left: 3px solid transparent;
+}
+
+.status-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .status-card--active {
@@ -144,8 +274,8 @@ body {
 }
 
 .status-card__count {
-    font-size: 1.4rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 700;
 }
 
 .status-card__label {
@@ -153,12 +283,41 @@ body {
     color: var(--muted);
 }
 
+.status-card--waiting { border-left-color: var(--badge-waiting-text); }
+.status-card--flagged { border-left-color: var(--badge-flagged-text); }
+.status-card--approved { border-left-color: var(--badge-approved-text); }
+.status-card--rejected { border-left-color: var(--badge-rejected-text); }
+.status-card--neutral { border-left-color: var(--muted); }
+
+/* ---------- Status badges ---------- */
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-badge--neutral { background: var(--badge-neutral-bg); color: var(--badge-neutral-text); }
+.status-badge--waiting { background: var(--badge-waiting-bg); color: var(--badge-waiting-text); }
+.status-badge--flagged { background: var(--badge-flagged-bg); color: var(--badge-flagged-text); }
+.status-badge--approved { background: var(--badge-approved-bg); color: var(--badge-approved-text); }
+.status-badge--rejected { background: var(--badge-rejected-bg); color: var(--badge-rejected-text); }
+
+/* ---------- Filters ---------- */
+
 .filters {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
 }
 
 .filters input,
@@ -167,6 +326,8 @@ body {
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 0.9rem;
+    background: var(--surface);
+    color: var(--text);
 }
 
 .filters label {
@@ -178,18 +339,30 @@ body {
 }
 
 .filters button {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 1.1rem;
     border: none;
     border-radius: 8px;
     background: var(--accent);
     color: #fff;
+    font-weight: 600;
     cursor: pointer;
+}
+
+.filters button:hover {
+    background: var(--accent-hover);
 }
 
 .total-count {
     color: var(--muted);
     font-size: 0.9rem;
     margin: 0 0 0.75rem;
+}
+
+/* ---------- Table ---------- */
+
+.table-scroll {
+    overflow-x: auto;
+    border-radius: 10px;
 }
 
 .applications-table {
@@ -199,26 +372,35 @@ body {
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .applications-table th,
 .applications-table td {
     text-align: left;
-    padding: 0.6rem 0.9rem;
+    padding: 0.7rem 1rem;
     border-bottom: 1px solid var(--border);
     font-size: 0.9rem;
+    color: var(--text);
 }
 
 .applications-table th {
     background: var(--bg);
     color: var(--muted);
     font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.applications-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
 .applications-table .empty-row {
     text-align: center;
     color: var(--muted);
-    padding: 1.5rem;
+    padding: 2rem;
 }
 
 .pagination {
@@ -228,12 +410,17 @@ body {
 }
 
 .page-link {
-    padding: 0.35rem 0.7rem;
+    padding: 0.4rem 0.75rem;
     border: 1px solid var(--border);
     border-radius: 6px;
     text-decoration: none;
     color: var(--text);
     font-size: 0.85rem;
+    background: var(--surface);
+}
+
+.page-link:hover {
+    border-color: var(--accent);
 }
 
 .page-link--active {
@@ -249,11 +436,14 @@ body {
 .clickable-row a {
     color: var(--text);
     text-decoration: none;
+    font-weight: 500;
 }
 
 .clickable-row:hover {
     background: var(--bg);
 }
+
+/* ---------- Detail page ---------- */
 
 .back-link {
     display: inline-block;
@@ -263,9 +453,16 @@ body {
     font-size: 0.9rem;
 }
 
+.back-link:hover {
+    text-decoration: underline;
+}
+
 .current-status {
     color: var(--muted);
-    margin: 0 0 0.75rem;
+    margin: 0 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .flags {
@@ -276,12 +473,12 @@ body {
 }
 
 .flag-badge {
-    background: #fdecea;
-    color: var(--danger);
-    border: 1px solid #f5c6c0;
+    background: var(--badge-flagged-bg);
+    color: var(--badge-flagged-text);
     border-radius: 999px;
     padding: 0.25rem 0.7rem;
     font-size: 0.8rem;
+    font-weight: 600;
 }
 
 .detail-grid {
@@ -295,7 +492,8 @@ body {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 1rem 1.25rem;
+    padding: 1.1rem 1.3rem;
+    box-shadow: var(--shadow-sm);
 }
 
 .detail-card h2 {
@@ -307,7 +505,7 @@ body {
     margin: 0;
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 0.35rem 0.75rem;
+    gap: 0.4rem 0.75rem;
 }
 
 .detail-card dt {
@@ -318,6 +516,7 @@ body {
 .detail-card dd {
     margin: 0;
     font-size: 0.9rem;
+    color: var(--text);
 }
 
 .muted {
@@ -341,6 +540,12 @@ body {
     margin-bottom: 1.25rem;
 }
 
+.raw-ocr summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
 .raw-ocr pre {
     white-space: pre-wrap;
     background: var(--surface);
@@ -348,6 +553,7 @@ body {
     border-radius: 8px;
     padding: 0.75rem 1rem;
     font-size: 0.85rem;
+    color: var(--text);
 }
 
 .actions {
@@ -356,6 +562,11 @@ body {
     align-items: center;
     gap: 0.6rem;
     margin-bottom: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    box-shadow: var(--shadow-sm);
 }
 
 .actions h2 {
@@ -374,31 +585,63 @@ body {
 }
 
 .reject-form input {
-    padding: 0.45rem 0.6rem;
+    padding: 0.55rem 0.7rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 0.9rem;
+    background: var(--surface);
+    color: var(--text);
 }
 
+.reject-form input:focus {
+    outline: none;
+    border-color: var(--danger);
+}
+
+/* ---------- Buttons ---------- */
+
 .action-button {
-    padding: 0.5rem 1rem;
+    padding: 0.55rem 1.1rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--surface);
+    color: var(--text);
     cursor: pointer;
     font-size: 0.9rem;
+    font-weight: 600;
+    transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.action-button--secondary {
+    background: var(--secondary-bg);
+    border-color: var(--secondary-border);
+    color: var(--secondary-text);
+}
+
+.action-button--secondary:hover {
+    background: var(--secondary-bg-hover);
 }
 
 .action-button--approve {
-    background: #1a7f37;
-    border-color: #1a7f37;
+    background: var(--success);
+    border-color: var(--success);
     color: #fff;
+}
+
+.action-button--approve:hover {
+    background: var(--success-hover);
+    border-color: var(--success-hover);
 }
 
 .action-button--reject {
     background: var(--danger);
     border-color: var(--danger);
     color: #fff;
+}
+
+.action-button--reject:hover {
+    background: var(--danger-hover);
+    border-color: var(--danger-hover);
 }
 
 .moderation-log h2 {
@@ -408,5 +651,9 @@ body {
 @media (max-width: 720px) {
     .detail-grid {
         grid-template-columns: 1fr;
+    }
+
+    .content {
+        padding: 1rem;
     }
 }

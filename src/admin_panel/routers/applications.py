@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from src.admin_panel.auth import get_current_admin
-from src.admin_panel.display import ACTION_LABELS, STATUS_LABELS, flag_label
+from src.admin_panel.csrf import csrf_protect, get_csrf_token
+from src.admin_panel.display import ACTION_LABELS, STATUS_LABELS, flag_label, status_css_class
 from src.bot.fsm_control import set_fsm_state
 from src.bot.notify import notify_user
 from src.bot.states.document_states import DocumentStates
@@ -70,8 +71,10 @@ async def application_detail(
         "application_detail.html",
         {
             "admin": admin,
+            "csrf_token": get_csrf_token(request),
             "application": application,
             "status_labels": STATUS_LABELS,
+            "status_css_class": status_css_class,
             "flag_label": flag_label,
             "photo_url": photo_url,
             "video_url": video_url,
@@ -85,7 +88,10 @@ async def application_detail(
 
 @router.post("/{application_id}/approve", response_model=None)
 async def approve_application(
-    application_id: int, request: Request, admin: AdminUser = Depends(get_current_admin)
+    application_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     async with async_session_factory() as session:
         application, user = await _load_application_and_user(session, application_id)
@@ -116,6 +122,7 @@ async def reject_application(
     request: Request,
     reason: str = Form(...),
     admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     async with async_session_factory() as session:
         application, user = await _load_application_and_user(session, application_id)
@@ -143,7 +150,10 @@ async def reject_application(
 
 @router.post("/{application_id}/request-photo", response_model=None)
 async def request_photo_again(
-    application_id: int, request: Request, admin: AdminUser = Depends(get_current_admin)
+    application_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     settings = get_settings()
     async with async_session_factory() as session:
@@ -177,7 +187,10 @@ async def request_photo_again(
 
 @router.post("/{application_id}/request-video", response_model=None)
 async def request_video_again(
-    application_id: int, request: Request, admin: AdminUser = Depends(get_current_admin)
+    application_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     settings = get_settings()
     async with async_session_factory() as session:

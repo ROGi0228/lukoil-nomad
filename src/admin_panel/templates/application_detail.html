@@ -4,8 +4,9 @@
 
 {% block body %}
 <header class="topbar">
-    <span>Nomad Lukoil — админ-панель</span>
+    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
     <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <span class="whoami">{{ admin.username }}</span>
         <button type="submit" class="link-button">Выйти</button>
     </form>
@@ -15,7 +16,10 @@
     <a class="back-link" href="/">&larr; К списку заявок</a>
 
     <h1>Заявка №{{ application.id }} — {{ application.full_name }}</h1>
-    <p class="current-status">Статус: <strong>{{ status_labels[application.status] }}</strong></p>
+    <p class="current-status">
+        Статус:
+        <span class="status-badge status-badge--{{ status_css_class(application.status) }}">{{ status_labels[application.status] }}</span>
+    </p>
 
     {% if application.verification_flags %}
     <div class="flags">
@@ -83,18 +87,22 @@
     <section class="actions">
         <h2>Действия</h2>
         <form method="post" action="/applications/{{ application.id }}/approve" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="action-button action-button--approve">Одобрить</button>
         </form>
 
         <form method="post" action="/applications/{{ application.id }}/request-photo" class="inline-form">
-            <button type="submit" class="action-button">Запросить фото заново</button>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="action-button action-button--secondary">Запросить фото заново</button>
         </form>
 
         <form method="post" action="/applications/{{ application.id }}/request-video" class="inline-form">
-            <button type="submit" class="action-button">Запросить видео заново</button>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="action-button action-button--secondary">Запросить видео заново</button>
         </form>
 
         <form method="post" action="/applications/{{ application.id }}/reject" class="reject-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="text" name="reason" placeholder="Причина отказа" required>
             <button type="submit" class="action-button action-button--reject">Отклонить</button>
         </form>

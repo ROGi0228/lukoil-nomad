@@ -5,6 +5,7 @@ from aiogram import Bot
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from redis.asyncio import Redis
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -17,10 +18,13 @@ from src.core.config import get_settings
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     bot = Bot(token=settings.bot_token)
+    redis: Redis = Redis.from_url(settings.redis_url)
     app.state.bot = bot
+    app.state.redis = redis
     try:
         yield
     finally:
+        await redis.aclose()
         await bot.session.close()
 
 

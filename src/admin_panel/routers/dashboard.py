@@ -5,7 +5,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from src.admin_panel.auth import get_current_admin
-from src.admin_panel.display import STATUS_LABELS, parse_date, parse_status
+from src.admin_panel.csrf import get_csrf_token
+from src.admin_panel.display import STATUS_LABELS, parse_date, parse_status, status_css_class
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.application_repository import (
     count_applications_by_status,
@@ -54,8 +55,10 @@ async def dashboard(
         "dashboard.html",
         {
             "admin": admin,
+            "csrf_token": get_csrf_token(request),
             "status_counts": status_counts,
             "status_labels": STATUS_LABELS,
+            "status_css_class": status_css_class,
             "applications": applications,
             "total": total,
             "page": page,
