@@ -55,8 +55,8 @@
         </thead>
         <tbody>
             {% for app in applications %}
-            <tr>
-                <td>{{ app.full_name }}</td>
+            <tr onclick="window.location='/applications/{{ app.id }}'" class="clickable-row">
+                <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
                 <td>{{ app.phone }}</td>
                 <td>{{ app.city }}</td>
                 <td>{{ status_labels[app.status] }}</td>

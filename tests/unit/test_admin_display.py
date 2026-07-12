@@ -1,6 +1,6 @@
 import datetime as dt
 
-from src.admin_panel.display import parse_date, parse_status
+from src.admin_panel.display import flag_label, parse_date, parse_status
 from src.shared.enums import ApplicationStatus
 
 
@@ -30,3 +30,11 @@ def test_parse_status_none() -> None:
 
 def test_parse_status_invalid() -> None:
     assert parse_status("not_a_real_status") is None
+
+
+def test_flag_label_known() -> None:
+    assert flag_label("fio_mismatch") == "ФИО не совпадает"
+
+
+def test_flag_label_unknown_falls_back_to_raw() -> None:
+    assert flag_label("some_new_flag") == "some_new_flag"

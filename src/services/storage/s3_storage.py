@@ -15,10 +15,17 @@ class S3Storage(FileStorage):
         self._session = aioboto3.Session()
 
     @asynccontextmanager
-    async def _client(self) -> AsyncIterator[Any]:
+    async def _client(self, *, public: bool = False) -> AsyncIterator[Any]:
+        # SigV4 подписывает Host как часть запроса — presigned-ссылка должна быть
+        # подписана тем же хостом, по которому её реально откроют (браузер снаружи
+        # Docker-сети не резолвит "minio"), поэтому для публичных ссылок нужен
+        # отдельный клиент с публичным endpoint, а не просто замена хоста в строке.
+        endpoint = self._settings.s3_endpoint_url
+        if public and self._settings.s3_public_endpoint_url:
+            endpoint = self._settings.s3_public_endpoint_url
         async with self._session.client(
             "s3",
-            endpoint_url=self._settings.s3_endpoint_url,
+            endpoint_url=endpoint,
             aws_access_key_id=self._settings.s3_access_key,
             aws_secret_access_key=self._settings.s3_secret_key,
             region_name=self._settings.s3_region,
@@ -47,3 +54,12 @@ class S3Storage(FileStorage):
             response = await client.get_object(Bucket=self._settings.s3_bucket, Key=key)
             body: bytes = await response["Body"].read()
             return body
+
+    async def presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        async with self._client(public=True) as client:
+            url: str = await client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self._settings.s3_bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+            return url

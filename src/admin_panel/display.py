@@ -1,6 +1,6 @@
 import datetime as dt
 
-from src.shared.enums import ApplicationStatus
+from src.shared.enums import ApplicationStatus, ModerationAction
 
 STATUS_LABELS: dict[ApplicationStatus, str] = {
     ApplicationStatus.DRAFT: "Черновик",
@@ -12,6 +12,29 @@ STATUS_LABELS: dict[ApplicationStatus, str] = {
     ApplicationStatus.APPROVED: "Одобрено",
     ApplicationStatus.REJECTED: "Отклонено",
 }
+
+FLAG_LABELS: dict[str, str] = {
+    "license_number_not_recognized": "Номер ВУ не распознан",
+    "iin_not_recognized": "ИИН не распознан",
+    "expiry_date_not_recognized": "Срок действия не распознан",
+    "document_expired": "Истёк срок действия",
+    "iin_birth_date_mismatch": "Дата рождения не совпадает с ИИН",
+    "fio_mismatch": "ФИО не совпадает",
+    "duplicate_document": "Документ уже зарегистрирован",
+    "editor_software_exif": "Признаки редактирования (EXIF)",
+    "ela_high_variance": "Признаки редактирования (ELA)",
+}
+
+ACTION_LABELS: dict[ModerationAction, str] = {
+    ModerationAction.APPROVE: "Одобрено",
+    ModerationAction.REJECT: "Отклонено",
+    ModerationAction.REQUEST_REUPLOAD_PHOTO: "Запрошено фото заново",
+    ModerationAction.REQUEST_REUPLOAD_VIDEO: "Запрошено видео заново",
+}
+
+
+def flag_label(flag: str) -> str:
+    return FLAG_LABELS.get(flag, flag)
 
 
 def parse_date(raw: str | None) -> dt.date | None:

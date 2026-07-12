@@ -12,6 +12,10 @@ async def get_application_by_user_id(session: AsyncSession, user_id: int) -> App
     return result.scalar_one_or_none()
 
 
+async def get_application(session: AsyncSession, application_id: int) -> Application | None:
+    return await session.get(Application, application_id)
+
+
 async def create_application(
     session: AsyncSession,
     *,

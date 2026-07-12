@@ -1,13 +1,11 @@
 from typing import Any
 
 from aiogram import Bot
-from aiogram.fsm.state import State
-from aiogram.fsm.storage.base import StorageKey
-from aiogram.fsm.storage.redis import RedisStorage
-from redis.asyncio import Redis
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.bot.fsm_control import set_fsm_state
+from src.bot.notify import notify_user
 from src.bot.states.document_states import DocumentStates
 from src.bot.states.video_states import VideoStates
 from src.core.config import get_settings
@@ -30,22 +28,6 @@ from src.services.verification.fio_matcher import fio_matches
 from src.shared.enums import ApplicationStatus
 
 logger = get_logger(__name__)
-
-
-async def _set_fsm_state(bot: Bot, redis_url: str, telegram_id: int, state: State) -> None:
-    """Бот уже очистил FSM-состояние сразу после постановки задачи в очередь (см.
-    document.py) — воркер работает в отдельном процессе и должен сам выставить нужное
-    состояние по итогам проверки (запросить фото заново или перейти к видео), иначе
-    следующее сообщение пользователя будет молча проигнорировано ботом (ни один
-    хендлер не подписан на апдейт без правильного FSM-состояния).
-    """
-    redis_client: Redis = Redis.from_url(redis_url)
-    try:
-        storage = RedisStorage(redis=redis_client)
-        key = StorageKey(bot_id=bot.id, chat_id=telegram_id, user_id=telegram_id)
-        await storage.set_state(key, state)
-    finally:
-        await redis_client.aclose()
 
 
 async def _find_duplicate_document(
@@ -82,13 +64,6 @@ def _build_ocr_raw_data(raw_text: str, parsed: ParsedDriverLicense) -> dict[str,
     }
 
 
-async def _notify_user(bot: Bot, telegram_id: int, text: str) -> None:
-    try:
-        await bot.send_message(telegram_id, text)
-    except Exception:
-        logger.exception("ocr_task_notify_failed", telegram_id=telegram_id)
-
-
 async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None:
     settings = get_settings()
     storage = S3Storage(settings)
@@ -120,10 +95,10 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
             logger.exception("ocr_task_extraction_failed", application_id=application_id)
             application.status = ApplicationStatus.PENDING_DOCUMENT
             await session.commit()
-            await _set_fsm_state(
+            await set_fsm_state(
                 bot, settings.redis_url, user.telegram_id, DocumentStates.waiting_photo
             )
-            await _notify_user(
+            await notify_user(
                 bot,
                 user.telegram_id,
                 "Не удалось проверить документ — попробуйте прислать фото ещё раз. "
@@ -188,10 +163,10 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
         await session.commit()
 
         if fio_mismatch:
-            await _set_fsm_state(
+            await set_fsm_state(
                 bot, settings.redis_url, user.telegram_id, DocumentStates.waiting_photo
             )
-            await _notify_user(
+            await notify_user(
                 bot,
                 user.telegram_id,
                 "Похоже, это не ваши водительские права — ФИО на документе не совпадает "
@@ -199,24 +174,24 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
                 "водительского удостоверения.",
             )
         elif duplicate is not None:
-            await _notify_user(
+            await notify_user(
                 bot,
                 user.telegram_id,
                 "Этот документ уже зарегистрирован в системе под другой заявкой. "
                 "Если это ошибка, свяжитесь с администратором проекта.",
             )
         elif flags:
-            await _notify_user(
+            await notify_user(
                 bot,
                 user.telegram_id,
                 "Документ получен, но потребовалась дополнительная ручная проверка — "
                 "мы свяжемся с вами после решения модератора.",
             )
         else:
-            await _set_fsm_state(
+            await set_fsm_state(
                 bot, settings.redis_url, user.telegram_id, VideoStates.waiting_video
             )
-            await _notify_user(
+            await notify_user(
                 bot,
                 user.telegram_id,
                 "Документ проверен и принят! Пришлите, пожалуйста, видео-визитку "

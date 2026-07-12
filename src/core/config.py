@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint_url: str
+    # Отдельный endpoint для presigned-ссылок, отдающихся браузеру админ-панели:
+    # backend обращается к MinIO по внутреннему docker-сетевому имени ("minio"),
+    # но браузер снаружи Docker-сети его не резолвит. Пусто = совпадает с
+    # s3_endpoint_url (нормально для прода с одним публичным S3-эндпоинтом).
+    s3_public_endpoint_url: str = ""
     s3_access_key: str
     s3_secret_key: str
     s3_bucket: str

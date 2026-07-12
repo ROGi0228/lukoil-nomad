@@ -1,3 +1,7 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from aiogram import Bot
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -5,13 +9,24 @@ from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.admin_panel.auth import NotAuthenticatedError
-from src.admin_panel.routers import auth, dashboard
+from src.admin_panel.routers import applications, auth, dashboard
 from src.core.config import get_settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings = get_settings()
+    bot = Bot(token=settings.bot_token)
+    app.state.bot = bot
+    try:
+        yield
+    finally:
+        await bot.session.close()
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Nomad Lukoil — админ-панель")
+    app = FastAPI(title="Nomad Lukoil — админ-панель", lifespan=lifespan)
 
     app.add_middleware(SessionMiddleware, secret_key=settings.admin_panel_secret_key)
     app.mount("/static", StaticFiles(directory="src/admin_panel/static"), name="static")
@@ -24,6 +39,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(dashboard.router)
+    app.include_router(applications.router)
 
     return app
 
