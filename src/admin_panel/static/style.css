@@ -117,3 +117,127 @@ body {
 .content {
     padding: 1.5rem;
 }
+
+.status-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.status-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text);
+    min-width: 120px;
+}
+
+.status-card--active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.status-card__count {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.status-card__label {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.filters input,
+.filters select {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.filters label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.filters button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+}
+
+.total-count {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 0.75rem;
+}
+
+.applications-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.applications-table th,
+.applications-table td {
+    text-align: left;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.applications-table th {
+    background: var(--bg);
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.applications-table .empty-row {
+    text-align: center;
+    color: var(--muted);
+    padding: 1.5rem;
+}
+
+.pagination {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 1rem;
+}
+
+.page-link {
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+.page-link--active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
