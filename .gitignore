@@ -16,6 +16,10 @@ htmlcov/
 .env.*
 !.env.example
 
+# Локальные оверрайды docker-compose (пути к секретам на конкретной машине —
+# не должны попадать в репозиторий, ломают деплой на других машинах/VPS)
+docker-compose.override.yml
+
 *.log
 logs/
 
