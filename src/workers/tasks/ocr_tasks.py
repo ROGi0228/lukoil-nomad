@@ -157,21 +157,42 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
         duplicate = await _find_duplicate_document(session, application.id, license_number, iin)
         if duplicate is not None:
             flags.append("duplicate_document")
-            license_number = None
-            iin = None
 
-        application.document_number = license_number
-        application.document_iin = iin
-        application.document_expiry_date = expiry_date
+        # Несовпадение ФИО — не "пограничная" эвристика вроде ELA, а однозначный сигнал
+        # "это чужой документ": не отправляем на модерацию, а сразу просим прислать своё
+        # удостоверение. Не привязываем чужой номер/ИИН к этой заявке — иначе они позже
+        # ложно заблокируют настоящего владельца документа проверкой на дубликат.
+        fio_mismatch = "fio_mismatch" in flags
+
+        if fio_mismatch:
+            application.document_photo_key = None
+            application.document_number = None
+            application.document_iin = None
+            application.document_expiry_date = None
+            application.status = ApplicationStatus.PENDING_DOCUMENT
+        else:
+            application.document_number = None if duplicate is not None else license_number
+            application.document_iin = None if duplicate is not None else iin
+            application.document_expiry_date = expiry_date
+            application.status = (
+                ApplicationStatus.DOCUMENT_FLAGGED if flags else ApplicationStatus.PENDING_VIDEO
+            )
+
         application.ocr_raw_data = _build_ocr_raw_data(raw_text, parsed)
         application.verification_flags = flags
-        application.status = (
-            ApplicationStatus.DOCUMENT_FLAGGED if flags else ApplicationStatus.PENDING_VIDEO
-        )
 
         await session.commit()
 
-        if duplicate is not None:
+        if fio_mismatch:
+            await _reset_fsm_to_waiting_photo(bot, settings.redis_url, user.telegram_id)
+            await _notify_user(
+                bot,
+                user.telegram_id,
+                "Похоже, это не ваши водительские права — ФИО на документе не совпадает "
+                "с указанным при регистрации. Пришлите, пожалуйста, фото своего "
+                "водительского удостоверения.",
+            )
+        elif duplicate is not None:
             await _notify_user(
                 bot,
                 user.telegram_id,
