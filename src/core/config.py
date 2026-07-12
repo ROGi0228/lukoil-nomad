@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = True
 
+    admin_panel_secret_key: str
+
     @field_validator("admin_telegram_ids", mode="before")
     @classmethod
     def _parse_admin_ids(cls, value: object) -> object:

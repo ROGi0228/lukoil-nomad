@@ -8,7 +8,6 @@ class ApplicationStatus(str, enum.Enum):
     DOCUMENT_FLAGGED = "document_flagged"
     PENDING_VIDEO = "pending_video"
     PENDING_MODERATION = "pending_moderation"
-    REUPLOAD_REQUESTED = "reupload_requested"
     APPROVED = "approved"
     REJECTED = "rejected"
 

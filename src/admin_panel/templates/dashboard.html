@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд — Nomad Lukoil{% endblock %}
+
+{% block body %}
+<header class="topbar">
+    <span>Nomad Lukoil — админ-панель</span>
+    <form method="post" action="/logout">
+        <span class="whoami">{{ admin.username }}</span>
+        <button type="submit" class="link-button">Выйти</button>
+    </form>
+</header>
+<main class="content">
+    <h1>Добро пожаловать, {{ admin.username }}</h1>
+    <p>Таблица заявок и фильтры появятся здесь на следующем шаге (5.2).</p>
+</main>
+{% endblock %}

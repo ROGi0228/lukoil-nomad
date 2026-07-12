@@ -35,7 +35,6 @@ _STATUS_MESSAGES: dict[ApplicationStatus, str] = {
     ApplicationStatus.DOCUMENT_FLAGGED: "Ваш документ на дополнительной проверке у модератора.",
     ApplicationStatus.PENDING_VIDEO: "Осталось загрузить видео-визитку.",
     ApplicationStatus.PENDING_MODERATION: "Ваша заявка на модерации, ожидайте решения.",
-    ApplicationStatus.REUPLOAD_REQUESTED: "Модератор запросил повторную загрузку материалов.",
     ApplicationStatus.APPROVED: "Ваша заявка уже одобрена!",
     ApplicationStatus.REJECTED: "К сожалению, ваша заявка была отклонена.",
 }
@@ -51,10 +50,7 @@ async def on_join(callback: CallbackQuery, state: FSMContext, db_session: AsyncS
     existing = await get_application_by_user_id(db_session, user.id)
     if existing is not None:
         await callback.message.answer(_STATUS_MESSAGES[existing.status])
-        if existing.status in (
-            ApplicationStatus.PENDING_DOCUMENT,
-            ApplicationStatus.REUPLOAD_REQUESTED,
-        ):
+        if existing.status == ApplicationStatus.PENDING_DOCUMENT:
             await state.set_state(DocumentStates.waiting_photo)
         elif existing.status == ApplicationStatus.PENDING_VIDEO:
             await state.set_state(VideoStates.waiting_video)

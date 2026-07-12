@@ -9,7 +9,7 @@ from src.db.models.base import Base
 
 # сюда добавлять импорт каждой новой модели по мере появления,
 # иначе Base.metadata не увидит таблицу при автогенерации миграций
-from src.db.models import application, user  # noqa: E402,F401
+from src.db.models import admin_user, application, moderation_log, user  # noqa: E402,F401
 
 config = context.config
 
