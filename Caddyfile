@@ -1,0 +1,7 @@
+lukoil.adverso.kz {
+    reverse_proxy admin-panel:8000
+}
+
+s3.lukoil.adverso.kz {
+    reverse_proxy minio:9000
+}
