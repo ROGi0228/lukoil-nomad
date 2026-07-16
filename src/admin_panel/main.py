@@ -10,7 +10,7 @@ from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.admin_panel.auth import NotAuthenticatedError
-from src.admin_panel.routers import applications, auth, dashboard
+from src.admin_panel.routers import applications, auth, dashboard, health
 from src.core.config import get_settings
 
 
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
     ) -> RedirectResponse:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
+    app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(applications.router)
