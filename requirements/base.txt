@@ -32,6 +32,7 @@ google-cloud-vision==3.9.0
 # Verification helpers
 rapidfuzz==3.11.0
 pillow==11.0.0
+pymupdf==1.28.0
 
 # Logging / monitoring
 structlog==24.4.0

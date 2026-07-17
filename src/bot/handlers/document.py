@@ -1,3 +1,4 @@
+import fitz
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
@@ -14,6 +15,18 @@ from src.shared.enums import ApplicationStatus
 router = Router(name="document")
 logger = get_logger(__name__)
 
+# Масштаб рендера PDF-страницы в изображение: PDF по умолчанию рендерится в 72 DPI,
+# для мелкого текста на правах этого мало для OCR — 2.5x даёт ~180 DPI.
+_PDF_RENDER_SCALE = 2.5
+
+
+def _render_pdf_first_page_to_jpeg(pdf_bytes: bytes) -> bytes:
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as pdf:
+        page = pdf.load_page(0)
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(_PDF_RENDER_SCALE, _PDF_RENDER_SCALE))
+        jpeg_bytes: bytes = pixmap.tobytes("jpeg")
+        return jpeg_bytes
+
 
 @router.message(DocumentStates.waiting_photo, F.photo | F.document)
 async def on_document_photo(
@@ -27,15 +40,21 @@ async def on_document_photo(
         return
 
     file_id: str | None = None
+    is_pdf = False
     if message.photo:
         file_id = message.photo[-1].file_id
-    elif message.document is not None and (message.document.mime_type or "").startswith("image/"):
-        file_id = message.document.file_id
+    elif message.document is not None:
+        mime_type = message.document.mime_type or ""
+        if mime_type.startswith("image/"):
+            file_id = message.document.file_id
+        elif mime_type == "application/pdf":
+            file_id = message.document.file_id
+            is_pdf = True
 
     if file_id is None:
         await message.answer(
             "Пришлите, пожалуйста, именно фото водительского удостоверения "
-            "(изображением или файлом-картинкой)."
+            "(изображением, файлом-картинкой или PDF)."
         )
         return
 
@@ -53,7 +72,20 @@ async def on_document_photo(
     if buffer is None:
         await message.answer("Не удалось загрузить файл, попробуйте прислать фото ещё раз.")
         return
-    image_bytes = buffer.read()
+    raw_bytes = buffer.read()
+
+    if is_pdf:
+        try:
+            image_bytes = _render_pdf_first_page_to_jpeg(raw_bytes)
+        except Exception:
+            logger.exception("pdf_render_failed", application_id=application.id)
+            await message.answer(
+                "Не удалось прочитать PDF-файл. Попробуйте прислать фото удостоверения "
+                "изображением или другим PDF-файлом."
+            )
+            return
+    else:
+        image_bytes = raw_bytes
 
     key = f"documents/{application.id}/{file_id}.jpg"
     await storage.upload(key, image_bytes, content_type="image/jpeg")
