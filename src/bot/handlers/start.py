@@ -28,9 +28,9 @@ async def cmd_start(message: Message, db_session: AsyncSession, settings: Settin
 
     if user.language is None:
         bilingual_text = (
-            f"{t('ru', 'welcome')}\n\n"
+            f"{t('ru', 'welcome_intro')}\n\n"
             "— — —\n\n"
-            f"{t('kk', 'welcome')}\n\n"
+            f"{t('kk', 'welcome_intro')}\n\n"
             f"{t('ru', 'choose_language_prompt')} / {t('kk', 'choose_language_prompt')}"
         )
         await message.answer(bilingual_text, reply_markup=language_keyboard())
