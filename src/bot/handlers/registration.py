@@ -33,7 +33,7 @@ _STATUS_MESSAGES: dict[ApplicationStatus, str] = {
     ),
     ApplicationStatus.PENDING_OCR: "Ваш документ проверяется, ожидайте.",
     ApplicationStatus.DOCUMENT_FLAGGED: "Ваш документ на дополнительной проверке у модератора.",
-    ApplicationStatus.PENDING_VIDEO: "Осталось загрузить видео-визитку.",
+    ApplicationStatus.PENDING_VIDEO: "Осталось загрузить видео-визитку (не больше 20 МБ).",
     ApplicationStatus.PENDING_MODERATION: "Ваша заявка на модерации, ожидайте решения.",
     ApplicationStatus.APPROVED: "Ваша заявка уже одобрена!",
     ApplicationStatus.REJECTED: "К сожалению, ваша заявка была отклонена.",
