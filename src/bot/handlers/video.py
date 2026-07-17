@@ -3,6 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.bot.i18n import resolve_lang, t
 from src.bot.states.video_states import VideoStates
 from src.bot.utils.video_validators import validate_video_metadata
 from src.core.logging import get_logger
@@ -25,6 +26,9 @@ async def on_video(
     if message.from_user is None:
         return
 
+    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
+    lang = resolve_lang(user.language)
+
     file_id: str | None = None
     duration: int | None = None
     file_size: int | None = None
@@ -38,22 +42,18 @@ async def on_video(
         file_size = message.document.file_size
 
     if file_id is None:
-        await message.answer(
-            "Пришлите, пожалуйста, видео-визитку видеофайлом (можно как видео или файлом). "
-            "Размер файла — не больше 20 МБ."
-        )
+        await message.answer(t(lang, "video_wrong_type"))
         return
 
-    error = validate_video_metadata(duration, file_size)
+    error = validate_video_metadata(duration, file_size, lang)
     if error is not None:
-        await message.answer(f"{error} Пришлите, пожалуйста, другое видео.")
+        await message.answer(error)
         return
 
-    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
     application = await get_application_by_user_id(db_session, user.id)
     if application is None:
         await state.clear()
-        await message.answer("Анкета не найдена. Начните регистрацию заново — /start.")
+        await message.answer(t(lang, "application_not_found"))
         return
 
     if message.bot is None:
@@ -61,7 +61,7 @@ async def on_video(
 
     buffer = await message.bot.download(file_id)
     if buffer is None:
-        await message.answer("Не удалось загрузить файл, попробуйте прислать видео ещё раз.")
+        await message.answer(t(lang, "video_download_failed"))
         return
     video_bytes = buffer.read()
 
@@ -73,14 +73,12 @@ async def on_video(
     await db_session.flush()
 
     await state.clear()
-    await message.answer(
-        "Видео получено! Ваша заявка отправлена на модерацию — мы сообщим о решении."
-    )
+    await message.answer(t(lang, "video_received"))
 
 
 @router.message(VideoStates.waiting_video)
-async def on_video_wrong_content(message: Message) -> None:
-    await message.answer(
-        "Пришлите, пожалуйста, видео-визитку видеофайлом (можно как видео или файлом). "
-        "Размер файла — не больше 20 МБ."
-    )
+async def on_video_wrong_content(message: Message, db_session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
+    await message.answer(t(resolve_lang(user.language), "video_wrong_content_fallback"))

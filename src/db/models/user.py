@@ -17,5 +17,7 @@ class User(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     telegram_username: Mapped[str | None] = mapped_column(String(64))
+    # "ru" | "kk" — NULL, пока пользователь не выбрал язык на экране после /start
+    language: Mapped[str | None] = mapped_column(String(2))
 
     application: Mapped[Application | None] = relationship(back_populates="user", uselist=False)

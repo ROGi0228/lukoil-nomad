@@ -56,5 +56,7 @@ class Application(Base, TimestampMixin):
     # список сработавших эвристик (fio_mismatch, expired, tamper_suspected, ...) для карточки модератора
     verification_flags: Mapped[list[str] | None] = mapped_column(JSONB)
     video_key: Mapped[str | None] = mapped_column(String(255))
+    # присваивается при одобрении, формат "NOMAD_001" — см. applications.py:approve_application
+    participant_number: Mapped[str | None] = mapped_column(String(20), unique=True)
 
     user: Mapped[User] = relationship(back_populates="application")

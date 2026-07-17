@@ -37,6 +37,21 @@ async def create_application(
     return application
 
 
+async def next_participant_number(session: AsyncSession) -> str:
+    """Возвращает следующий номер участника в формате NOMAD_001.
+
+    Простой подсчёт уже присвоенных номеров, без отдельной SQL-последовательности —
+    при реальном масштабе (~100 участников, одобрение по одному через админ-панель)
+    гонки по этому счётчику практически исключены.
+    """
+    count = (
+        await session.execute(
+            select(func.count()).where(Application.participant_number.is_not(None))
+        )
+    ).scalar_one()
+    return f"NOMAD_{count + 1:03d}"
+
+
 async def count_applications_by_status(session: AsyncSession) -> dict[ApplicationStatus, int]:
     result = await session.execute(
         select(Application.status, func.count(Application.id)).group_by(Application.status)

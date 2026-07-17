@@ -1,20 +1,23 @@
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.bot.i18n import resolve_lang, t
 from src.bot.keyboards.registration import (
     PDN_ACCEPT_CALLBACK,
     PDN_DECLINE_CALLBACK,
     pdn_consent_keyboard,
     phone_request_keyboard,
 )
-from src.bot.keyboards.start import JOIN_CALLBACK
+from src.bot.keyboards.start import JOIN_CALLBACK, SUBSCRIBE_CHECK_CALLBACK, subscribe_keyboard
 from src.bot.states.document_states import DocumentStates
 from src.bot.states.registration_states import RegistrationStates
 from src.bot.states.video_states import VideoStates
+from src.bot.utils.subscription import is_subscribed_to_channel
 from src.bot.utils.validators import normalize_phone, validate_city, validate_full_name
+from src.core.config import Settings
 from src.core.logging import get_logger
 from src.db.repositories.application_repository import (
     create_application,
@@ -26,118 +29,163 @@ from src.shared.enums import ApplicationStatus
 router = Router(name="registration")
 logger = get_logger(__name__)
 
-_STATUS_MESSAGES: dict[ApplicationStatus, str] = {
-    ApplicationStatus.DRAFT: "Ваша регистрация ещё не завершена — начните заново.",
-    ApplicationStatus.PENDING_DOCUMENT: (
-        "Анкета уже принята. Пришлите, пожалуйста, фото водительского удостоверения."
-    ),
-    ApplicationStatus.PENDING_OCR: "Ваш документ проверяется, ожидайте.",
-    ApplicationStatus.DOCUMENT_FLAGGED: "Ваш документ на дополнительной проверке у модератора.",
-    ApplicationStatus.PENDING_VIDEO: "Осталось загрузить видео-визитку (не больше 20 МБ).",
-    ApplicationStatus.PENDING_MODERATION: "Ваша заявка на модерации, ожидайте решения.",
-    ApplicationStatus.APPROVED: "Ваша заявка уже одобрена!",
-    ApplicationStatus.REJECTED: "К сожалению, ваша заявка была отклонена.",
+_STATUS_TEXT_KEYS: dict[ApplicationStatus, str] = {
+    ApplicationStatus.DRAFT: "status_draft",
+    ApplicationStatus.PENDING_DOCUMENT: "status_pending_document",
+    ApplicationStatus.PENDING_OCR: "status_pending_ocr",
+    ApplicationStatus.DOCUMENT_FLAGGED: "status_document_flagged",
+    ApplicationStatus.PENDING_VIDEO: "status_pending_video",
+    ApplicationStatus.PENDING_MODERATION: "status_pending_moderation",
+    ApplicationStatus.APPROVED: "status_approved",
+    ApplicationStatus.REJECTED: "status_rejected",
 }
 
 
+async def _proceed_to_registration(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
+    await state.update_data(lang=lang)
+    await state.set_state(RegistrationStates.waiting_full_name)
+    await callback.message.answer(t(lang, "ask_full_name"))  # type: ignore[union-attr]
+
+
 @router.callback_query(F.data == JOIN_CALLBACK)
-async def on_join(callback: CallbackQuery, state: FSMContext, db_session: AsyncSession) -> None:
+async def on_join(
+    callback: CallbackQuery,
+    state: FSMContext,
+    db_session: AsyncSession,
+    bot: Bot,
+    settings: Settings,
+) -> None:
     await callback.answer()
     if callback.from_user is None or callback.message is None:
         return
 
     user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
+    lang = resolve_lang(user.language)
     existing = await get_application_by_user_id(db_session, user.id)
     if existing is not None:
-        await callback.message.answer(_STATUS_MESSAGES[existing.status])
+        await callback.message.answer(t(lang, _STATUS_TEXT_KEYS[existing.status]))
         if existing.status == ApplicationStatus.PENDING_DOCUMENT:
             await state.set_state(DocumentStates.waiting_photo)
         elif existing.status == ApplicationStatus.PENDING_VIDEO:
             await state.set_state(VideoStates.waiting_video)
         return
 
-    await state.set_state(RegistrationStates.waiting_full_name)
-    await callback.message.answer("Введите ваше ФИО полностью (например: Иванов Иван Иванович):")
+    subscribed = await is_subscribed_to_channel(
+        bot, settings.required_channel_username, callback.from_user.id
+    )
+    if not subscribed:
+        await callback.message.answer(
+            t(lang, "subscribe_required"), reply_markup=subscribe_keyboard(lang, settings)
+        )
+        return
+
+    await _proceed_to_registration(callback, state, lang)
+
+
+@router.callback_query(F.data == SUBSCRIBE_CHECK_CALLBACK)
+async def on_subscribe_check(
+    callback: CallbackQuery,
+    state: FSMContext,
+    db_session: AsyncSession,
+    bot: Bot,
+    settings: Settings,
+) -> None:
+    await callback.answer()
+    if callback.from_user is None or callback.message is None:
+        return
+
+    user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
+    lang = resolve_lang(user.language)
+
+    subscribed = await is_subscribed_to_channel(
+        bot, settings.required_channel_username, callback.from_user.id
+    )
+    if not subscribed:
+        await callback.message.answer(
+            t(lang, "subscribe_channel_not_confirmed"),
+            reply_markup=subscribe_keyboard(lang, settings),
+        )
+        return
+
+    await _proceed_to_registration(callback, state, lang)
 
 
 @router.message(RegistrationStates.waiting_full_name)
 async def on_full_name(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
+
     full_name = validate_full_name(message.text or "")
     if full_name is None:
-        await message.answer(
-            "Не похоже на ФИО. Введите фамилию и имя (можно с отчеством), "
-            "используя только буквы, например: Иванов Иван Иванович:"
-        )
+        await message.answer(t(lang, "invalid_full_name"))
         return
 
     await state.update_data(full_name=full_name)
     await state.set_state(RegistrationStates.waiting_phone)
-    await message.answer(
-        "Отправьте номер телефона кнопкой ниже или введите его вручную "
-        "(например: +77071234567):",
-        reply_markup=phone_request_keyboard(),
-    )
+    await message.answer(t(lang, "ask_phone"), reply_markup=phone_request_keyboard(lang))
 
 
 @router.message(RegistrationStates.waiting_phone, F.contact)
 async def on_phone_contact(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
+
     contact = message.contact
     if contact is None or message.from_user is None or contact.user_id != message.from_user.id:
-        await message.answer(
-            "Пожалуйста, отправьте именно свой номер телефона кнопкой ниже, "
-            "либо введите его вручную:"
-        )
+        await message.answer(t(lang, "wrong_contact_owner"))
         return
 
     phone = normalize_phone(contact.phone_number)
     if phone is None:
-        await message.answer(
-            "Не удалось распознать номер. Введите его вручную в формате +77071234567:"
-        )
+        await message.answer(t(lang, "phone_parse_failed"))
         return
 
-    await _save_phone_and_continue(message, state, phone)
+    await _save_phone_and_continue(message, state, phone, lang)
 
 
 @router.message(RegistrationStates.waiting_phone)
 async def on_phone_text(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
+
     phone = normalize_phone(message.text or "")
     if phone is None:
-        await message.answer(
-            "Не похоже на номер телефона. Введите номер в формате +77071234567 "
-            "или воспользуйтесь кнопкой «Отправить номер телефона»:"
-        )
+        await message.answer(t(lang, "invalid_phone_text"))
         return
 
-    await _save_phone_and_continue(message, state, phone)
+    await _save_phone_and_continue(message, state, phone, lang)
 
 
-async def _save_phone_and_continue(message: Message, state: FSMContext, phone: str) -> None:
+async def _save_phone_and_continue(
+    message: Message, state: FSMContext, phone: str, lang: str
+) -> None:
     await state.update_data(phone=phone)
     await state.set_state(RegistrationStates.waiting_city)
-    await message.answer("Введите город проживания:", reply_markup=ReplyKeyboardRemove())
+    await message.answer(t(lang, "ask_city"), reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(RegistrationStates.waiting_city)
 async def on_city(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
+
     city = validate_city(message.text or "")
     if city is None:
-        await message.answer(
-            "Название города должно содержать от 2 до 100 букв. Введите город ещё раз:"
-        )
+        await message.answer(t(lang, "invalid_city"))
         return
 
     await state.update_data(city=city)
     await state.set_state(RegistrationStates.waiting_pdn_consent)
     data = await state.get_data()
     await message.answer(
-        "Проверьте данные:\n"
-        f"ФИО: {data['full_name']}\n"
-        f"Телефон: {data['phone']}\n"
-        f"Город: {city}\n\n"
-        "Продолжая, вы даёте согласие на обработку персональных данных "
-        "для целей участия в проекте.",
-        reply_markup=pdn_consent_keyboard(),
+        t(
+            lang,
+            "confirm_data",
+            full_name=data["full_name"],
+            phone=data["phone"],
+            city=city,
+        ),
+        reply_markup=pdn_consent_keyboard(lang),
     )
 
 
@@ -150,6 +198,7 @@ async def on_consent_accept(
         return
 
     data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
     user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
 
     try:
@@ -163,25 +212,18 @@ async def on_consent_accept(
     except IntegrityError:
         await db_session.rollback()
         await state.clear()
-        await callback.message.answer(
-            "Этот номер телефона уже зарегистрирован в системе. "
-            "Если это ошибка, свяжитесь с администратором проекта."
-        )
+        await callback.message.answer(t(lang, "duplicate_phone"))
         return
 
     await state.set_state(DocumentStates.waiting_photo)
-    await callback.message.answer(
-        "Спасибо! Анкета сохранена. Пришлите, пожалуйста, фото водительского удостоверения "
-        "(изображением или файлом-картинкой)."
-    )
+    await callback.message.answer(t(lang, "registration_saved_ask_document"))
 
 
 @router.callback_query(RegistrationStates.waiting_pdn_consent, F.data == PDN_DECLINE_CALLBACK)
 async def on_consent_decline(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
     await callback.answer()
     await state.clear()
     if callback.message is not None:
-        await callback.message.answer(
-            "Без согласия на обработку персональных данных продолжить регистрацию нельзя. "
-            "Вы можете начать заново в любой момент, нажав «Принять участие»."
-        )
+        await callback.message.answer(t(lang, "pdn_declined"))

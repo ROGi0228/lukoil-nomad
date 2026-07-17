@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # env-переменной для list[int] ДО field_validator и падает на "123,456"
     admin_telegram_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     news_channel_url: str = ""
+    # @username канала для проверки подписки через getChatMember — бот должен быть
+    # в нём администратором. Отдельно от news_channel_url (та — просто ссылка на кнопку).
+    required_channel_username: str = ""
+    instagram_url: str = ""
 
     database_url: str
 

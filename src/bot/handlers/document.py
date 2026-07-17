@@ -5,6 +5,7 @@ from aiogram.types import Message
 from arq import ArqRedis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.bot.i18n import resolve_lang, t
 from src.bot.states.document_states import DocumentStates
 from src.core.logging import get_logger
 from src.db.repositories.application_repository import get_application_by_user_id
@@ -39,6 +40,9 @@ async def on_document_photo(
     if message.from_user is None:
         return
 
+    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
+    lang = resolve_lang(user.language)
+
     file_id: str | None = None
     is_pdf = False
     if message.photo:
@@ -52,17 +56,13 @@ async def on_document_photo(
             is_pdf = True
 
     if file_id is None:
-        await message.answer(
-            "Пришлите, пожалуйста, именно фото водительского удостоверения "
-            "(изображением, файлом-картинкой или PDF)."
-        )
+        await message.answer(t(lang, "document_wrong_type"))
         return
 
-    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
     application = await get_application_by_user_id(db_session, user.id)
     if application is None:
         await state.clear()
-        await message.answer("Анкета не найдена. Начните регистрацию заново — /start.")
+        await message.answer(t(lang, "application_not_found"))
         return
 
     if message.bot is None:
@@ -70,7 +70,7 @@ async def on_document_photo(
 
     buffer = await message.bot.download(file_id)
     if buffer is None:
-        await message.answer("Не удалось загрузить файл, попробуйте прислать фото ещё раз.")
+        await message.answer(t(lang, "document_download_failed"))
         return
     raw_bytes = buffer.read()
 
@@ -79,10 +79,7 @@ async def on_document_photo(
             image_bytes = _render_pdf_first_page_to_jpeg(raw_bytes)
         except Exception:
             logger.exception("pdf_render_failed", application_id=application.id)
-            await message.answer(
-                "Не удалось прочитать PDF-файл. Попробуйте прислать фото удостоверения "
-                "изображением или другим PDF-файлом."
-            )
+            await message.answer(t(lang, "pdf_parse_failed"))
             return
     else:
         image_bytes = raw_bytes
@@ -102,14 +99,12 @@ async def on_document_photo(
     await arq_pool.enqueue_job("process_document_ocr", application.id)
 
     await state.clear()
-    await message.answer(
-        "Фото получено, документ проверяется — обычно это занимает не больше минуты. "
-        "Мы пришлём сообщение, как только проверка завершится."
-    )
+    await message.answer(t(lang, "document_received_processing"))
 
 
 @router.message(DocumentStates.waiting_photo)
-async def on_document_wrong_content(message: Message) -> None:
-    await message.answer(
-        "Пришлите, пожалуйста, фото водительского удостоверения изображением или файлом-картинкой."
-    )
+async def on_document_wrong_content(message: Message, db_session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
+    await message.answer(t(resolve_lang(user.language), "document_wrong_content_fallback"))

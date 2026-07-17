@@ -1,4 +1,5 @@
 from aiogram import Bot
+from aiogram.types import BufferedInputFile
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -9,14 +10,16 @@ from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import ACTION_LABELS, STATUS_LABELS, flag_label, status_css_class
 from src.bot.fsm_control import set_fsm_state
+from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
 from src.bot.states.document_states import DocumentStates
 from src.bot.states.video_states import VideoStates
 from src.core.config import get_settings
+from src.core.logging import get_logger
 from src.db.models.admin_user import AdminUser
 from src.db.models.application import Application
 from src.db.models.user import User
-from src.db.repositories.application_repository import get_application
+from src.db.repositories.application_repository import get_application, next_participant_number
 from src.db.repositories.moderation_log_repository import create_log, list_logs_for_application
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
@@ -24,6 +27,7 @@ from src.shared.enums import ApplicationStatus, ModerationAction
 
 router = APIRouter(prefix="/applications")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
+logger = get_logger(__name__)
 
 
 async def _load_application_and_user(
@@ -86,6 +90,22 @@ async def application_detail(
     )
 
 
+async def _announce_in_channel(
+    bot: Bot, storage: S3Storage, channel_username: str, video_key: str, participant_number: str
+) -> None:
+    if not channel_username:
+        return
+    try:
+        video_bytes = await storage.download(video_key)
+        await bot.send_video(
+            chat_id=channel_username,
+            video=BufferedInputFile(video_bytes, filename=f"{participant_number}.mp4"),
+            caption=t("ru", "channel_announcement", participant_number=participant_number),
+        )
+    except Exception:
+        logger.exception("channel_announcement_failed", participant_number=participant_number)
+
+
 @router.post("/{application_id}/approve", response_model=None)
 async def approve_application(
     application_id: int,
@@ -93,9 +113,12 @@ async def approve_application(
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
+    settings = get_settings()
     async with async_session_factory() as session:
         application, user = await _load_application_and_user(session, application_id)
+        participant_number = await next_participant_number(session)
         application.status = ApplicationStatus.APPROVED
+        application.participant_number = participant_number
         await create_log(
             session,
             application_id=application.id,
@@ -104,13 +127,20 @@ async def approve_application(
         )
         await session.commit()
         telegram_id = user.telegram_id
+        lang = resolve_lang(user.language)
+        video_key = application.video_key
 
     bot: Bot = request.app.state.bot
     await notify_user(
         bot,
         telegram_id,
-        "Ваша заявка одобрена! Поздравляем — вы участник проекта Nomad Lukoil.",
+        t(lang, "approved", participant_number=participant_number),
     )
+    if video_key:
+        storage = S3Storage(settings)
+        await _announce_in_channel(
+            bot, storage, settings.required_channel_username, video_key, participant_number
+        )
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -136,13 +166,10 @@ async def reject_application(
         )
         await session.commit()
         telegram_id = user.telegram_id
+        lang = resolve_lang(user.language)
 
     bot: Bot = request.app.state.bot
-    await notify_user(
-        bot,
-        telegram_id,
-        f"К сожалению, ваша заявка отклонена. Причина: {reason}",
-    )
+    await notify_user(bot, telegram_id, t(lang, "rejected", reason=reason))
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -171,15 +198,11 @@ async def request_photo_again(
         )
         await session.commit()
         telegram_id = user.telegram_id
+        lang = resolve_lang(user.language)
 
     bot: Bot = request.app.state.bot
     await set_fsm_state(bot, settings.redis_url, telegram_id, DocumentStates.waiting_photo)
-    await notify_user(
-        bot,
-        telegram_id,
-        "Модератор попросил прислать фото водительского удостоверения ещё раз. "
-        "Пришлите, пожалуйста, новое фото.",
-    )
+    await notify_user(bot, telegram_id, t(lang, "request_photo_again"))
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -205,14 +228,11 @@ async def request_video_again(
         )
         await session.commit()
         telegram_id = user.telegram_id
+        lang = resolve_lang(user.language)
 
     bot: Bot = request.app.state.bot
     await set_fsm_state(bot, settings.redis_url, telegram_id, VideoStates.waiting_video)
-    await notify_user(
-        bot,
-        telegram_id,
-        "Модератор попросил прислать видео-визитку ещё раз. Пришлите, пожалуйста, новое видео.",
-    )
+    await notify_user(bot, telegram_id, t(lang, "request_video_again"))
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
     )

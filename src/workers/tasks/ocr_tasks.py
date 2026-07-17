@@ -5,6 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.fsm_control import set_fsm_state
+from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
 from src.bot.states.document_states import DocumentStates
 from src.bot.states.video_states import VideoStates
@@ -80,6 +81,8 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
             logger.warning("ocr_task_user_not_found", application_id=application_id)
             return
 
+        lang = resolve_lang(user.language)
+
         if application.document_photo_key is None:
             logger.warning("ocr_task_no_photo_key", application_id=application_id)
             return
@@ -98,12 +101,7 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
             await set_fsm_state(
                 bot, settings.redis_url, user.telegram_id, DocumentStates.waiting_photo
             )
-            await notify_user(
-                bot,
-                user.telegram_id,
-                "Не удалось проверить документ — попробуйте прислать фото ещё раз. "
-                "Убедитесь, что все поля видны и текст не размыт.",
-            )
+            await notify_user(bot, user.telegram_id, t(lang, "ocr_failed_retry"))
             return
 
         parsed = parse_driver_license(raw_text)
@@ -166,34 +164,13 @@ async def process_document_ocr(ctx: dict[str, Any], application_id: int) -> None
             await set_fsm_state(
                 bot, settings.redis_url, user.telegram_id, DocumentStates.waiting_photo
             )
-            await notify_user(
-                bot,
-                user.telegram_id,
-                "Похоже, это не ваши водительские права — ФИО на документе не совпадает "
-                "с указанным при регистрации. Пришлите, пожалуйста, фото своего "
-                "водительского удостоверения.",
-            )
+            await notify_user(bot, user.telegram_id, t(lang, "fio_mismatch"))
         elif duplicate is not None:
-            await notify_user(
-                bot,
-                user.telegram_id,
-                "Этот документ уже зарегистрирован в системе под другой заявкой. "
-                "Если это ошибка, свяжитесь с администратором проекта.",
-            )
+            await notify_user(bot, user.telegram_id, t(lang, "duplicate_document"))
         elif flags:
-            await notify_user(
-                bot,
-                user.telegram_id,
-                "Документ получен, но потребовалась дополнительная ручная проверка — "
-                "мы свяжемся с вами после решения модератора.",
-            )
+            await notify_user(bot, user.telegram_id, t(lang, "manual_review_needed"))
         else:
             await set_fsm_state(
                 bot, settings.redis_url, user.telegram_id, VideoStates.waiting_video
             )
-            await notify_user(
-                bot,
-                user.telegram_id,
-                "Документ проверен и принят! Пришлите, пожалуйста, видео-визитку "
-                "(коротко расскажите о себе на видео). Размер файла — не больше 20 МБ.",
-            )
+            await notify_user(bot, user.telegram_id, t(lang, "document_accepted_ask_video"))
