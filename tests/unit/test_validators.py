@@ -8,6 +8,7 @@ from src.bot.utils.validators import normalize_phone, validate_city, validate_fu
         ("Иванов Иван Иванович", "Иванов Иван Иванович"),
         ("  Иванов   Иван  ", "Иванов Иван"),
         ("Smith John", "Smith John"),
+        ("Мынбаев Ерлік Бауыржанұлы", "Мынбаев Ерлік Бауыржанұлы"),
     ],
 )
 def test_validate_full_name_valid(raw: str, expected: str) -> None:
