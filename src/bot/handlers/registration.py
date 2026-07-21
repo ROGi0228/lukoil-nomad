@@ -1,4 +1,5 @@
 from aiogram import Bot, F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy.exc import IntegrityError
@@ -39,6 +40,25 @@ _STATUS_TEXT_KEYS: dict[ApplicationStatus, str] = {
     ApplicationStatus.APPROVED: "status_approved",
     ApplicationStatus.REJECTED: "status_rejected",
 }
+
+
+@router.message(Command("status"))
+async def cmd_status(message: Message, state: FSMContext, db_session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+
+    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
+    lang = resolve_lang(user.language)
+    existing = await get_application_by_user_id(db_session, user.id)
+    if existing is None:
+        await message.answer(t(lang, "no_application_yet"))
+        return
+
+    await message.answer(t(lang, _STATUS_TEXT_KEYS[existing.status]))
+    if existing.status == ApplicationStatus.PENDING_DOCUMENT:
+        await state.set_state(DocumentStates.waiting_photo)
+    elif existing.status == ApplicationStatus.PENDING_VIDEO:
+        await state.set_state(VideoStates.waiting_video)
 
 
 async def _proceed_to_registration(callback: CallbackQuery, state: FSMContext, lang: str) -> None:

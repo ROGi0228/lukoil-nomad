@@ -6,7 +6,13 @@ from fastapi.templating import Jinja2Templates
 
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import get_csrf_token
-from src.admin_panel.display import STATUS_LABELS, parse_date, parse_status, status_css_class
+from src.admin_panel.display import (
+    STATUS_LABELS,
+    format_dt,
+    parse_date,
+    parse_status,
+    status_css_class,
+)
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.application_repository import (
     count_applications_by_status,
@@ -16,6 +22,7 @@ from src.db.session import async_session_factory
 
 router = APIRouter()
 templates = Jinja2Templates(directory="src/admin_panel/templates")
+templates.env.filters["format_dt"] = format_dt
 
 PAGE_SIZE = 25
 

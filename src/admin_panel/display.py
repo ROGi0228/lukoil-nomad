@@ -1,6 +1,11 @@
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from src.shared.enums import ApplicationStatus, ModerationAction
+
+# Клиент в Казахстане (UTC+5, без перехода на летнее время) — все временные метки
+# в БД хранятся в UTC (timestamptz), в интерфейсе показываем сразу в местном времени.
+DISPLAY_TIMEZONE = ZoneInfo("Asia/Almaty")
 
 STATUS_LABELS: dict[ApplicationStatus, str] = {
     ApplicationStatus.DRAFT: "Черновик",
@@ -52,6 +57,10 @@ def flag_label(flag: str) -> str:
 
 def status_css_class(status: ApplicationStatus) -> str:
     return STATUS_CSS_CLASS.get(status, "neutral")
+
+
+def format_dt(value: dt.datetime) -> str:
+    return value.astimezone(DISPLAY_TIMEZONE).strftime("%d.%m.%Y %H:%M")
 
 
 def parse_date(raw: str | None) -> dt.date | None:

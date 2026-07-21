@@ -52,7 +52,7 @@
                 <th>Телефон</th>
                 <th>Город</th>
                 <th>Статус</th>
-                <th>Дата подачи</th>
+                <th>Дата подачи (Алматы)</th>
             </tr>
         </thead>
         <tbody>
@@ -62,7 +62,7 @@
                 <td>{{ app.phone }}</td>
                 <td>{{ app.city }}</td>
                 <td><span class="status-badge status-badge--{{ status_css_class(app.status) }}">{{ status_labels[app.status] }}</span></td>
-                <td>{{ app.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+                <td>{{ app.created_at | format_dt }}</td>
             </tr>
             {% else %}
             <tr>

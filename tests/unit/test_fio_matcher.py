@@ -15,3 +15,8 @@ def test_fio_matches_minor_typo() -> None:
 
 def test_fio_matches_different_person() -> None:
     assert fio_matches("Иванов Иван Иванович", "ЛЕЛЁТКА ИВАН ВЛАДИМИРОВИЧ") is False
+
+
+def test_fio_matches_ocr_latin_cyrillic_homoglyphs() -> None:
+    # Реальный случай: OCR прочитал "СТАРОВ" латинскими буквами-омоглифами "CTAPOB"
+    assert fio_matches("Старов Никита Иванович", "CTAPOB НИКИТА ИВАНОВИЧ") is True

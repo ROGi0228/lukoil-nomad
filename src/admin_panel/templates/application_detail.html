@@ -36,7 +36,7 @@
                 <dt>ФИО</dt><dd>{{ application.full_name }}</dd>
                 <dt>Телефон</dt><dd>{{ application.phone }}</dd>
                 <dt>Город</dt><dd>{{ application.city }}</dd>
-                <dt>Подана</dt><dd>{{ application.created_at.strftime("%d.%m.%Y %H:%M") }}</dd>
+                <dt>Подана (Алматы)</dt><dd>{{ application.created_at | format_dt }}</dd>
             </dl>
         </div>
 
@@ -114,7 +114,7 @@
         <table class="applications-table">
             <thead>
                 <tr>
-                    <th>Когда</th>
+                    <th>Когда (Алматы)</th>
                     <th>Кто</th>
                     <th>Действие</th>
                     <th>Причина</th>
@@ -123,7 +123,7 @@
             <tbody>
                 {% for log in logs %}
                 <tr>
-                    <td>{{ log.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+                    <td>{{ log.created_at | format_dt }}</td>
                     <td>{{ log.admin_user.username }}</td>
                     <td>{{ action_labels[log.action] }}</td>
                     <td>{{ log.reason or "—" }}</td>

@@ -8,7 +8,13 @@ from starlette import status
 
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
-from src.admin_panel.display import ACTION_LABELS, STATUS_LABELS, flag_label, status_css_class
+from src.admin_panel.display import (
+    ACTION_LABELS,
+    STATUS_LABELS,
+    flag_label,
+    format_dt,
+    status_css_class,
+)
 from src.bot.fsm_control import set_fsm_state
 from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
@@ -27,6 +33,7 @@ from src.shared.enums import ApplicationStatus, ModerationAction
 
 router = APIRouter(prefix="/applications")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
+templates.env.filters["format_dt"] = format_dt
 logger = get_logger(__name__)
 
 
