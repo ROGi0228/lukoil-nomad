@@ -25,7 +25,11 @@ from src.core.logging import get_logger
 from src.db.models.admin_user import AdminUser
 from src.db.models.application import Application
 from src.db.models.user import User
-from src.db.repositories.application_repository import get_application, next_participant_number
+from src.db.repositories.application_repository import (
+    get_application,
+    has_announced_in_channel_today,
+    next_participant_number,
+)
 from src.db.repositories.moderation_log_repository import create_log, list_logs_for_application
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
@@ -98,16 +102,23 @@ async def application_detail(
 
 
 async def _announce_in_channel(
-    bot: Bot, storage: S3Storage, channel_username: str, video_key: str, participant_number: str
+    bot: Bot,
+    storage: S3Storage,
+    channel_username: str,
+    video_key: str,
+    participant_number: str,
+    *,
+    already_announced_today: bool,
 ) -> None:
     if not channel_username:
         return
+    text_key = "channel_announcement_repeat" if already_announced_today else "channel_announcement"
     try:
         video_bytes = await storage.download(video_key)
         await bot.send_video(
             chat_id=channel_username,
             video=BufferedInputFile(video_bytes, filename=f"{participant_number}.mp4"),
-            caption=t("ru", "channel_announcement", participant_number=participant_number),
+            caption=t("ru", text_key, participant_number=participant_number),
         )
     except Exception:
         logger.exception("channel_announcement_failed", participant_number=participant_number)
@@ -124,6 +135,9 @@ async def approve_application(
     async with async_session_factory() as session:
         application, user = await _load_application_and_user(session, application_id)
         participant_number = await next_participant_number(session)
+        already_announced_today = await has_announced_in_channel_today(
+            session, exclude_application_id=application.id
+        )
         application.status = ApplicationStatus.APPROVED
         application.participant_number = participant_number
         await create_log(
@@ -146,7 +160,12 @@ async def approve_application(
     if video_key:
         storage = S3Storage(settings)
         await _announce_in_channel(
-            bot, storage, settings.required_channel_username, video_key, participant_number
+            bot,
+            storage,
+            settings.required_channel_username,
+            video_key,
+            participant_number,
+            already_announced_today=already_announced_today,
         )
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER

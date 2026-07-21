@@ -1,10 +1,13 @@
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.application import Application
 from src.shared.enums import ApplicationStatus
+
+_ALMATY_TZ = ZoneInfo("Asia/Almaty")
 
 
 async def get_application_by_user_id(session: AsyncSession, user_id: int) -> Application | None:
@@ -50,6 +53,29 @@ async def next_participant_number(session: AsyncSession) -> str:
         )
     ).scalar_one()
     return f"NOMAD_{count + 1:03d}"
+
+
+async def has_announced_in_channel_today(
+    session: AsyncSession, *, exclude_application_id: int
+) -> bool:
+    """Был ли сегодня (по времени Алматы) уже хотя бы один пост в канал с видео
+    одобренного участника — чтобы не здороваться в подписи повторно за один день."""
+    now_almaty = dt.datetime.now(_ALMATY_TZ)
+    day_start = now_almaty.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + dt.timedelta(days=1)
+
+    count = (
+        await session.execute(
+            select(func.count()).where(
+                Application.id != exclude_application_id,
+                Application.participant_number.is_not(None),
+                Application.video_key.is_not(None),
+                Application.updated_at >= day_start,
+                Application.updated_at < day_end,
+            )
+        )
+    ).scalar_one()
+    return count > 0
 
 
 async def count_applications_by_status(session: AsyncSession) -> dict[ApplicationStatus, int]:

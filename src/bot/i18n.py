@@ -383,6 +383,10 @@ _TEXTS: dict[str, dict[Lang, str]] = {
         "ru": "Всем привет! Встречаем нашего нового участника Nomad Lukoil Expedition — {participant_number}.",
         "kk": "Сәлем бәріне! Nomad Lukoil Expedition жобасының жаңа қатысушысын таныстырамыз — {participant_number}.",
     },
+    "channel_announcement_repeat": {
+        "ru": "Встречаем ещё одного участника Nomad Lukoil Expedition — {participant_number}.",
+        "kk": "Nomad Lukoil Expedition жобасының тағы бір қатысушысын таныстырамыз — {participant_number}.",
+    },
     "btn_join": {"ru": "Принять участие", "kk": "Қатысуға"},
     "btn_channel": {"ru": "Наш канал", "kk": "Біздің канал"},
     "btn_instagram": {"ru": "Instagram Lukoil", "kk": "Lukoil Instagram"},
