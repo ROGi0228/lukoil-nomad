@@ -11,7 +11,31 @@ _ISSUE_DATE_RE = re.compile(r"4a\)\s*(\d{2}\.\d{2}\.\d{4})")
 _EXPIRY_DATE_RE = re.compile(r"4b\)\s*(\d{2}\.\d{2}\.\d{4})")
 _AUTHORITY_RE = re.compile(r"4c\)\s*(.+?)(?=\n|4d\)|$)", re.UNICODE)
 _IIN_RE = re.compile(r"(?:ЖСН|IIN)\D{0,10}(\d{12})", re.UNICODE)
-_LICENSE_NUMBER_RE = re.compile(r"5\.\s*([A-Z]{2}\s?\d{6})")
+# [A-ZА-Я] — намеренно захватывает и кириллицу: серия номера ВУ визуально совпадает
+# в обоих алфавитах (АВСЕНКМОРТХУ похожи на ABCEHKMOPTXY), и OCR иногда читает эти
+# буквы как кириллические омоглифы. Нормализуем к латинице ниже — таков формат номера.
+_LICENSE_NUMBER_RE = re.compile(r"5\.\s*([A-ZА-Я]{2}\s?\d{6})")
+
+_CYRILLIC_TO_LATIN_HOMOGLYPHS = str.maketrans(
+    {
+        "А": "A",
+        "В": "B",
+        "С": "C",
+        "Е": "E",
+        "Н": "H",
+        "К": "K",
+        "М": "M",
+        "О": "O",
+        "Р": "P",
+        "Т": "T",
+        "Х": "X",
+        "У": "Y",
+    }
+)
+
+
+def _normalize_license_number(value: str) -> str:
+    return value.translate(_CYRILLIC_TO_LATIN_HOMOGLYPHS)
 
 
 @dataclass(frozen=True)
@@ -39,6 +63,7 @@ def _match(pattern: re.Pattern[str], text: str, group: int = 1) -> str | None:
 
 def parse_driver_license(raw_text: str) -> ParsedDriverLicense:
     birth_match = _BIRTH_RE.search(raw_text)
+    license_number_raw = _match(_LICENSE_NUMBER_RE, raw_text)
 
     return ParsedDriverLicense(
         surname=_match(_SURNAME_RE, raw_text),
@@ -49,5 +74,7 @@ def parse_driver_license(raw_text: str) -> ParsedDriverLicense:
         expiry_date=_match(_EXPIRY_DATE_RE, raw_text),
         issuing_authority=_match(_AUTHORITY_RE, raw_text),
         iin=_match(_IIN_RE, raw_text),
-        license_number=_match(_LICENSE_NUMBER_RE, raw_text),
+        license_number=(
+            _normalize_license_number(license_number_raw) if license_number_raw else None
+        ),
     )

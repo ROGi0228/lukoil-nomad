@@ -3,6 +3,27 @@ import re
 
 _LICENSE_NUMBER_RE = re.compile(r"^[A-Z]{2}\s?\d{6}$")
 _IIN_RE = re.compile(r"^\d{12}$")
+
+# Серия номера ВУ визуально совпадает в кириллице и латинице (АВСЕНКМОРТХУ похожи
+# на ABCEHKMOPTXY) — OCR иногда отдаёт кириллические омоглифы вместо латиницы,
+# хотя формат номера требует латиницу. parser.py уже нормализует на своей стороне,
+# но проверка формата не должна полагаться на то, что вызывающий код это сделал.
+_CYRILLIC_TO_LATIN_HOMOGLYPHS = str.maketrans(
+    {
+        "А": "A",
+        "В": "B",
+        "С": "C",
+        "Е": "E",
+        "Н": "H",
+        "К": "K",
+        "М": "M",
+        "О": "O",
+        "Р": "P",
+        "Т": "T",
+        "Х": "X",
+        "У": "Y",
+    }
+)
 _DATE_RE = re.compile(r"^(\d{2})\.(\d{2})\.(\d{4})$")
 
 # 7-й разряд ИИН РК кодирует век+пол рождения — используем только век,
@@ -19,7 +40,7 @@ _IIN_CENTURY_BY_DIGIT = {
 
 
 def validate_license_number(raw: str) -> str | None:
-    cleaned = raw.strip().upper()
+    cleaned = raw.strip().upper().translate(_CYRILLIC_TO_LATIN_HOMOGLYPHS)
     if not _LICENSE_NUMBER_RE.match(cleaned):
         return None
     return cleaned

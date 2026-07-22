@@ -54,3 +54,11 @@ def test_parse_driver_license_garbled_text_does_not_crash() -> None:
 
     assert result.license_number is None
     assert result.iin is None
+
+
+def test_parse_driver_license_cyrillic_homoglyph_series() -> None:
+    # Реальный случай: OCR прочитал серию номера "BB" кириллическими буквами "ВВ"
+    text = SAMPLE_OCR_TEXT.replace("5. AF 977776", "5. ВВ 983045")
+    result = parse_driver_license(text)
+
+    assert result.license_number == "BB 983045"

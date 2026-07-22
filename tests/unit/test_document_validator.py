@@ -16,6 +16,7 @@ from src.services.verification.document_validator import (
         ("AF 977776", "AF 977776"),
         ("af977776", "AF977776"),
         ("  AF 977776  ", "AF 977776"),
+        ("ВВ 983045", "BB 983045"),  # кириллические омоглифы вместо латиницы
     ],
 )
 def test_validate_license_number_valid(raw: str, expected: str) -> None:
