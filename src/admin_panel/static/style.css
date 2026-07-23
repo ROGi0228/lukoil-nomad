@@ -1173,6 +1173,18 @@ h1, h2, h3 {
     margin-bottom: 1rem;
 }
 
+.conditional-field {
+    display: none;
+}
+
+.broadcast-form:has(input[name="audience"][value="team"]:checked) .conditional-field--team {
+    display: block;
+}
+
+.broadcast-form:has(input[name="audience"][value="participant"]:checked) .conditional-field--participant {
+    display: block;
+}
+
 .section-title {
     display: flex;
     align-items: center;

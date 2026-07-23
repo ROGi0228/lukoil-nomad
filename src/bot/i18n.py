@@ -464,6 +464,10 @@ _TEXTS: dict[str, dict[Lang, str]] = {
         "ru": "Новое задание для вашей команды!\n\n<b>{title}</b>\n{description}\n\nВыполнить нужно до {deadline}.",
         "kk": "Командаңызға жаңа тапсырма!\n\n<b>{title}</b>\n{description}\n\n{deadline} дейін орындау керек.",
     },
+    "task_dispatched_no_deadline": {
+        "ru": "Новое задание для вашей команды!\n\n<b>{title}</b>\n{description}",
+        "kk": "Командаңызға жаңа тапсырма!\n\n<b>{title}</b>\n{description}",
+    },
     "task_already_done": {
         "ru": "Это задание уже отмечено выполненным вашей командой.",
         "kk": "Бұл тапсырманы командаңыз бұрын орындады деп белгілеген.",

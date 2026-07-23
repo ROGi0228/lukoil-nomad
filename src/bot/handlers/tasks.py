@@ -48,7 +48,7 @@ async def on_task_done(callback: CallbackQuery, db_session: AsyncSession, bot: B
         return
 
     now = dt.datetime.now(dt.UTC)
-    if now > task.deadline_at:
+    if task.deadline_at is not None and now > task.deadline_at:
         await callback.message.answer(t(lang, "task_deadline_passed"))
         return
 

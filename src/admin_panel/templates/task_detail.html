@@ -10,7 +10,7 @@
 <a class="back-link" href="/tasks">{{ icons.svg("chevron-left", 15) }} К заданиям</a>
 
 <p class="current-status">
-    {{ icons.svg("clock", 14) }} Отправка: {{ task.send_at | format_dt }} &nbsp;·&nbsp; Дедлайн: {{ task.deadline_at | format_dt }}
+    {{ icons.svg("clock", 14) }} Отправка: {{ task.send_at | format_dt }} &nbsp;·&nbsp; Дедлайн: {% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}без дедлайна{% endif %}
     {% if task.is_daily %}<span class="status-badge status-badge--waiting">Задание дня</span>{% endif %}
 </p>
 

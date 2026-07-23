@@ -100,6 +100,34 @@ async def list_winners_and_bloggers_contacts(session: AsyncSession) -> list[tupl
     return list(result.tuples())
 
 
+async def list_winners_and_bloggers(session: AsyncSession) -> list[Application]:
+    """Победители и отмеченные блогеры (объекты заявок) — для выбора конкретного
+    получателя в рассылке из админки."""
+    result = await session.execute(
+        select(Application)
+        .where(
+            or_(
+                Application.selection_stage == SelectionStage.WINNER,
+                Application.is_blogger.is_(True),
+            )
+        )
+        .order_by(Application.full_name)
+    )
+    return list(result.scalars().all())
+
+
+async def get_application_contact(
+    session: AsyncSession, application_id: int
+) -> tuple[int, str | None] | None:
+    """(telegram_id, language) одной заявки — для личного сообщения из рассылки."""
+    result = await session.execute(
+        select(User.telegram_id, User.language)
+        .join(Application, Application.user_id == User.id)
+        .where(Application.id == application_id)
+    )
+    return result.tuples().first()
+
+
 async def next_participant_number(session: AsyncSession) -> str:
     """Возвращает следующий номер участника в формате NOMAD_001.
 

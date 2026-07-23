@@ -59,6 +59,9 @@
                 </div>
             </div>
 
+            <label class="checkbox-row">
+                <input type="checkbox" name="no_deadline" value="true"> Без дедлайна (штраф за просрочку не начисляется)
+            </label>
             <label class="checkbox-row" style="margin-bottom: 0.9rem;">
                 <input type="checkbox" name="is_daily" value="true"> Задание дня (дедлайн — конец суток отправки)
             </label>
@@ -73,7 +76,7 @@
                     <input type="time" id="deadline-time" name="deadline_time">
                 </div>
             </div>
-            <p class="field-hint">Не нужно заполнять, если отмечено «Задание дня».</p>
+            <p class="field-hint">Не нужно заполнять, если отмечено «Задание дня» или «Без дедлайна». Если отмечено и то, и другое — дедлайна не будет.</p>
 
             <div class="form-field" style="max-width: 220px;">
                 <label for="penalty-points">Штраф за просрочку, баллы</label>
@@ -103,7 +106,7 @@
                 <tr>
                     <td>{{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}</td>
                     <td>{{ task.send_at | format_dt }}</td>
-                    <td>{{ task.deadline_at | format_dt }}</td>
+                    <td>{% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}<span class="muted">Без дедлайна</span>{% endif %}</td>
                     <td>{% if task.dispatched %}<span class="status-badge status-badge--approved">Да</span>{% else %}<span class="status-badge status-badge--waiting">Ожидает</span>{% endif %}</td>
                     <td><a href="/tasks/{{ task.id }}">Детали {{ icons.svg("chevron-right", 13) }}</a></td>
                 </tr>

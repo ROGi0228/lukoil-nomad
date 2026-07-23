@@ -60,6 +60,7 @@ async def create_task_route(
     send_date: str = Form(...),
     send_time: str = Form(...),
     is_daily: bool = Form(default=False),
+    no_deadline: bool = Form(default=False),
     deadline_date: str = Form(default=""),
     deadline_time: str = Form(default=""),
     penalty_points: int = Form(default=2),
@@ -68,7 +69,10 @@ async def create_task_route(
 ) -> RedirectResponse:
     send_at = _to_utc(send_date, send_time)
 
-    if is_daily:
+    deadline_at: dt.datetime | None
+    if no_deadline:
+        deadline_at = None
+    elif is_daily:
         deadline_at = _to_utc(send_date, "23:59")
     else:
         deadline_at = _to_utc(deadline_date or send_date, deadline_time or "23:59")

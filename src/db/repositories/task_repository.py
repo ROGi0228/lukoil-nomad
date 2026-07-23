@@ -17,7 +17,7 @@ async def create_task(
     title: str,
     description: str,
     send_at: dt.datetime,
-    deadline_at: dt.datetime,
+    deadline_at: dt.datetime | None,
     is_daily: bool,
     penalty_points: int,
 ) -> Task:

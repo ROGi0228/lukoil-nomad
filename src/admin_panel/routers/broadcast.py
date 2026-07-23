@@ -9,7 +9,11 @@ from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.bot.notify import notify_user
 from src.db.models.admin_user import AdminUser
-from src.db.repositories.application_repository import list_winners_and_bloggers_contacts
+from src.db.repositories.application_repository import (
+    get_application_contact,
+    list_winners_and_bloggers,
+    list_winners_and_bloggers_contacts,
+)
 from src.db.repositories.team_repository import list_team_member_contacts, list_teams
 from src.db.session import async_session_factory
 
@@ -18,10 +22,17 @@ templates = Jinja2Templates(directory="src/admin_panel/templates")
 
 
 async def _resolve_contacts(
-    session: AsyncSession, audience: str, team: str
+    session: AsyncSession, audience: str, team: str, participant: str
 ) -> list[tuple[int, str | None]]:
-    if audience == "team" and team:
+    if audience == "team":
+        if not team:
+            return []
         return await list_team_member_contacts(session, int(team))
+    if audience == "participant":
+        if not participant:
+            return []
+        contact = await get_application_contact(session, int(participant))
+        return [contact] if contact else []
     return await list_winners_and_bloggers_contacts(session)
 
 
@@ -33,6 +44,7 @@ async def broadcast_page(
 ) -> HTMLResponse:
     async with async_session_factory() as session:
         teams = await list_teams(session)
+        participants = await list_winners_and_bloggers(session)
 
     return templates.TemplateResponse(
         request,
@@ -41,9 +53,10 @@ async def broadcast_page(
             "admin": admin,
             "csrf_token": get_csrf_token(request),
             "teams": teams,
+            "participants": participants,
             "recipient_count": None,
             "sent_count": sent,
-            "form": {"audience": "all", "team": "", "message": ""},
+            "form": {"audience": "all", "team": "", "participant": "", "message": ""},
         },
     )
 
@@ -54,13 +67,15 @@ async def broadcast_submit(
     action: str = Form(...),
     audience: str = Form("all"),
     team: str = Form(""),
+    participant: str = Form(""),
     message: str = Form(""),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> HTMLResponse | RedirectResponse:
     async with async_session_factory() as session:
-        contacts = await _resolve_contacts(session, audience, team)
+        contacts = await _resolve_contacts(session, audience, team, participant)
         teams = await list_teams(session)
+        participants = await list_winners_and_bloggers(session)
 
     if action == "send" and message.strip():
         bot: Bot = request.app.state.bot
@@ -77,8 +92,14 @@ async def broadcast_submit(
             "admin": admin,
             "csrf_token": get_csrf_token(request),
             "teams": teams,
+            "participants": participants,
             "recipient_count": len(contacts),
             "sent_count": None,
-            "form": {"audience": audience, "team": team, "message": message},
+            "form": {
+                "audience": audience,
+                "team": team,
+                "participant": participant,
+                "message": message,
+            },
         },
     )

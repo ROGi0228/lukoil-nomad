@@ -4,14 +4,14 @@
 {% block title %}Рассылка — LUKOIL NOMAD{% endblock %}
 
 {% block page_title %}Рассылка сообщений{% endblock %}
-{% block page_subtitle %}<p class="topbar__subtitle">Личное сообщение — на странице заявки участника или блогера</p>{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Массово — победителям, команде или лично</p>{% endblock %}
 
 {% block content %}
 {% if sent_count is not none %}
 <p class="flash-banner">{{ icons.svg("check", 16) }} Отправлено {{ sent_count }} участникам.</p>
 {% endif %}
 
-<form method="post" action="/broadcast" class="detail-card">
+<form method="post" action="/broadcast" class="detail-card broadcast-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
     <p class="field-group-label">Кому</p>
@@ -24,14 +24,30 @@
             <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
             {{ icons.svg("users", 15) }} Конкретной команде
         </label>
+        <label class="radio-row">
+            <input type="radio" name="audience" value="participant" {% if form.audience == "participant" %}checked{% endif %}>
+            {{ icons.svg("message-square", 15) }} Конкретному участнику
+        </label>
     </div>
 
-    <div class="form-field" style="max-width: 320px;">
+    <div class="conditional-field conditional-field--team form-field" style="max-width: 320px;">
         <label for="broadcast-team">Команда</label>
         <select id="broadcast-team" name="team">
             <option value="">Выберите команду</option>
             {% for team in teams %}
             <option value="{{ team.id }}" {% if form.team == team.id | string %}selected{% endif %}>{{ team.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="conditional-field conditional-field--participant form-field" style="max-width: 320px;">
+        <label for="broadcast-participant">Участник или блогер</label>
+        <select id="broadcast-participant" name="participant">
+            <option value="">Выберите участника</option>
+            {% for app in participants %}
+            <option value="{{ app.id }}" {% if form.participant == app.id | string %}selected{% endif %}>
+                {{ app.full_name }}{% if app.is_blogger %} (блогер){% else %} ({{ app.participant_number or "—" }}){% endif %}
+            </option>
             {% endfor %}
         </select>
     </div>

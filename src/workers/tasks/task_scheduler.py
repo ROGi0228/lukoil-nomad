@@ -34,15 +34,23 @@ async def dispatch_due_tasks(ctx: dict[str, Any]) -> None:
                 contacts = await list_team_member_contacts(session, team_id)
                 for telegram_id, language in contacts:
                     lang = resolve_lang(language)
-                    text = t(
-                        lang,
-                        "task_dispatched",
-                        title=task.title,
-                        description=task.description,
-                        deadline=task.deadline_at.astimezone(dt.timezone(dt.timedelta(hours=5))).strftime(
-                            "%d.%m.%Y %H:%M"
-                        ),
-                    )
+                    if task.deadline_at is not None:
+                        text = t(
+                            lang,
+                            "task_dispatched",
+                            title=task.title,
+                            description=task.description,
+                            deadline=task.deadline_at.astimezone(
+                                dt.timezone(dt.timedelta(hours=5))
+                            ).strftime("%d.%m.%Y %H:%M"),
+                        )
+                    else:
+                        text = t(
+                            lang,
+                            "task_dispatched_no_deadline",
+                            title=task.title,
+                            description=task.description,
+                        )
                     try:
                         await bot.send_message(
                             telegram_id, text, reply_markup=task_dispatch_keyboard(lang, dispatch.id)
