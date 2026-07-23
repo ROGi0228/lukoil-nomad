@@ -17,3 +17,7 @@ class ModerationAction(str, enum.Enum):
     REJECT = "reject"
     REQUEST_REUPLOAD_PHOTO = "request_reupload_photo"
     REQUEST_REUPLOAD_VIDEO = "request_reupload_video"
+    # Документ проверен модератором вручную (снят флаг DOCUMENT_FLAGGED) и участник
+    # переведён к загрузке видео — в отличие от REQUEST_REUPLOAD_VIDEO, видео при
+    # этом действии ещё ни разу не присылалось, это не повторный запрос.
+    APPROVE_DOCUMENT = "approve_document"

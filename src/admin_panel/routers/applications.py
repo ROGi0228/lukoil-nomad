@@ -201,6 +201,39 @@ async def reject_application(
     )
 
 
+@router.post("/{application_id}/approve-document", response_model=None)
+async def approve_document(
+    application_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Модератор вручную снимает флаг DOCUMENT_FLAGGED (эвристика ошиблась/не
+    критична) и переводит участника к загрузке видео — до этого видео ещё ни разу
+    не присылалось, в отличие от request_video_again, который про повторную загрузку.
+    """
+    settings = get_settings()
+    async with async_session_factory() as session:
+        application, user = await _load_application_and_user(session, application_id)
+        application.status = ApplicationStatus.PENDING_VIDEO
+        await create_log(
+            session,
+            application_id=application.id,
+            admin_user_id=admin.id,
+            action=ModerationAction.APPROVE_DOCUMENT,
+        )
+        await session.commit()
+        telegram_id = user.telegram_id
+        lang = resolve_lang(user.language)
+
+    bot: Bot = request.app.state.bot
+    await set_fsm_state(bot, settings.redis_url, telegram_id, VideoStates.waiting_video)
+    await notify_user(bot, telegram_id, t(lang, "document_accepted_ask_video"))
+    return RedirectResponse(
+        f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
 @router.post("/{application_id}/request-photo", response_model=None)
 async def request_photo_again(
     application_id: int,

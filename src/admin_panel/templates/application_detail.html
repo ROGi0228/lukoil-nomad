@@ -86,20 +86,29 @@
 
     <section class="actions">
         <h2>Действия</h2>
+        {% if application.video_key %}
         <form method="post" action="/applications/{{ application.id }}/approve" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="action-button action-button--approve">Одобрить</button>
         </form>
+        {% endif %}
 
         <form method="post" action="/applications/{{ application.id }}/request-photo" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="action-button action-button--secondary">Запросить фото заново</button>
         </form>
 
+        {% if application.video_key %}
         <form method="post" action="/applications/{{ application.id }}/request-video" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="action-button action-button--secondary">Запросить видео заново</button>
         </form>
+        {% else %}
+        <form method="post" action="/applications/{{ application.id }}/approve-document" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="action-button action-button--secondary">Документ в порядке — запросить видео</button>
+        </form>
+        {% endif %}
 
         <form method="post" action="/applications/{{ application.id }}/reject" class="reject-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
