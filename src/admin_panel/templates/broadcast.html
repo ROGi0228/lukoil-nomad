@@ -16,6 +16,7 @@
     <a class="back-link" href="/">&larr; К списку заявок</a>
 
     <h1>Рассылка сообщений</h1>
+    <p class="muted">Личное сообщение конкретному участнику или блогеру — на странице его заявки.</p>
 
     {% if sent_count is not none %}
     <p class="total-count">Отправлено {{ sent_count }} участникам.</p>
@@ -26,26 +27,16 @@
 
         <label>
             <input type="radio" name="audience" value="all" {% if form.audience == "all" %}checked{% endif %}>
-            Всем пользователям бота
+            Всем победителям и блогерам
         </label>
         <label>
-            <input type="radio" name="audience" value="filtered" {% if form.audience == "filtered" %}checked{% endif %}>
-            По фильтру заявок
+            <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
+            Конкретной команде
         </label>
 
         <div class="filters">
-            <select name="status">
-                <option value="">Любой статус</option>
-                {% for status_value, label in status_labels.items() %}
-                <option value="{{ status_value.value }}" {% if form.status == status_value.value %}selected{% endif %}>
-                    {{ label }}
-                </option>
-                {% endfor %}
-            </select>
-            <input type="text" name="city" placeholder="Город" value="{{ form.city }}">
             <select name="team">
-                <option value="">Любая команда</option>
-                <option value="none" {% if form.team == "none" %}selected{% endif %}>Без команды</option>
+                <option value="">Выберите команду</option>
                 {% for team in teams %}
                 <option value="{{ team.id }}" {% if form.team == team.id | string %}selected{% endif %}>{{ team.name }}</option>
                 {% endfor %}
