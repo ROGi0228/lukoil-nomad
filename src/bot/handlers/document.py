@@ -9,7 +9,6 @@ from src.bot.i18n import resolve_lang, t
 from src.bot.keyboards.document import (
     HAS_LICENSE_CALLBACK,
     NO_LICENSE_CALLBACK,
-    document_request_keyboard,
     no_license_keyboard,
 )
 from src.bot.states.document_states import DocumentStates
@@ -133,4 +132,4 @@ async def on_has_license(callback: CallbackQuery, db_session: AsyncSession) -> N
         return
     user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
     lang = resolve_lang(user.language)
-    await callback.message.answer(t(lang, "ask_document"), reply_markup=document_request_keyboard(lang))
+    await callback.message.answer(t(lang, "has_license_ack"))
