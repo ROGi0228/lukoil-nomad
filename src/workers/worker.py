@@ -2,6 +2,8 @@ import asyncio
 from typing import Any
 
 from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from arq.connections import RedisSettings
 
 from src.core.config import get_settings
@@ -18,7 +20,7 @@ asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 async def startup(ctx: dict[str, Any]) -> None:
-    ctx["bot"] = Bot(token=settings.bot_token)
+    ctx["bot"] = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     logger.info("worker_started")
 
 
