@@ -13,13 +13,13 @@ def test_validate_video_metadata_ok() -> None:
 def test_validate_video_metadata_too_short() -> None:
     error = validate_video_metadata(MIN_DURATION_SECONDS - 1, None, "ru")
     assert error is not None
-    assert "коротк" in error
+    assert "критериям" in error
 
 
 def test_validate_video_metadata_too_long() -> None:
     error = validate_video_metadata(MAX_DURATION_SECONDS + 1, None, "ru")
     assert error is not None
-    assert "длинн" in error
+    assert "критериям" in error
 
 
 def test_validate_video_metadata_too_large() -> None:
@@ -44,4 +44,4 @@ def test_validate_video_metadata_boundary_values() -> None:
 def test_validate_video_metadata_kk_lang() -> None:
     error = validate_video_metadata(MIN_DURATION_SECONDS - 1, None, "kk")
     assert error is not None
-    assert "қысқа" in error
+    assert "талаптарға" in error

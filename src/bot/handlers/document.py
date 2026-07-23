@@ -1,11 +1,17 @@
 import fitz
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from arq import ArqRedis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.i18n import resolve_lang, t
+from src.bot.keyboards.document import (
+    HAS_LICENSE_CALLBACK,
+    NO_LICENSE_CALLBACK,
+    document_request_keyboard,
+    no_license_keyboard,
+)
 from src.bot.states.document_states import DocumentStates
 from src.core.logging import get_logger
 from src.db.repositories.application_repository import get_application_by_user_id
@@ -108,3 +114,23 @@ async def on_document_wrong_content(message: Message, db_session: AsyncSession) 
         return
     user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
     await message.answer(t(resolve_lang(user.language), "document_wrong_content_fallback"))
+
+
+@router.callback_query(DocumentStates.waiting_photo, F.data == NO_LICENSE_CALLBACK)
+async def on_no_license(callback: CallbackQuery, db_session: AsyncSession) -> None:
+    await callback.answer()
+    if callback.from_user is None or callback.message is None:
+        return
+    user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
+    lang = resolve_lang(user.language)
+    await callback.message.answer(t(lang, "no_license_message"), reply_markup=no_license_keyboard(lang))
+
+
+@router.callback_query(DocumentStates.waiting_photo, F.data == HAS_LICENSE_CALLBACK)
+async def on_has_license(callback: CallbackQuery, db_session: AsyncSession) -> None:
+    await callback.answer()
+    if callback.from_user is None or callback.message is None:
+        return
+    user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
+    lang = resolve_lang(user.language)
+    await callback.message.answer(t(lang, "ask_document"), reply_markup=document_request_keyboard(lang))

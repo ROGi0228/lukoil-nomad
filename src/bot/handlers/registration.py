@@ -6,9 +6,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.i18n import resolve_lang, t
+from src.bot.keyboards.document import document_request_keyboard
 from src.bot.keyboards.registration import (
     PDN_ACCEPT_CALLBACK,
     PDN_DECLINE_CALLBACK,
+    PDN_RESTART_CALLBACK,
     pdn_consent_keyboard,
     phone_request_keyboard,
 )
@@ -64,7 +66,7 @@ async def cmd_status(message: Message, state: FSMContext, db_session: AsyncSessi
 async def _proceed_to_registration(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
     await state.update_data(lang=lang)
     await state.set_state(RegistrationStates.waiting_full_name)
-    await callback.message.answer(t(lang, "ask_full_name"))  # type: ignore[union-attr]
+    await callback.message.answer(t(lang, "subscribed_ask_full_name"))  # type: ignore[union-attr]
 
 
 @router.callback_query(F.data == JOIN_CALLBACK)
@@ -236,7 +238,9 @@ async def on_consent_accept(
         return
 
     await state.set_state(DocumentStates.waiting_photo)
-    await callback.message.answer(t(lang, "registration_saved_ask_document"))
+    await callback.message.answer(
+        t(lang, "registration_saved_ask_document"), reply_markup=document_request_keyboard(lang)
+    )
 
 
 @router.callback_query(RegistrationStates.waiting_pdn_consent, F.data == PDN_DECLINE_CALLBACK)
@@ -247,3 +251,16 @@ async def on_consent_decline(callback: CallbackQuery, state: FSMContext) -> None
     await state.clear()
     if callback.message is not None:
         await callback.message.answer(t(lang, "pdn_declined"))
+
+
+@router.callback_query(RegistrationStates.waiting_pdn_consent, F.data == PDN_RESTART_CALLBACK)
+async def on_consent_restart(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = resolve_lang(data.get("lang"))
+    await callback.answer()
+    if callback.message is None:
+        return
+
+    await state.set_data({"lang": lang})
+    await state.set_state(RegistrationStates.waiting_full_name)
+    await callback.message.answer(t(lang, "ask_full_name"))

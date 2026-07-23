@@ -35,11 +35,19 @@ def subscribe_keyboard(lang: Lang, settings: Settings) -> InlineKeyboardMarkup:
     buttons: list[list[InlineKeyboardButton]] = []
     if settings.news_channel_url:
         buttons.append(
-            [InlineKeyboardButton(text=t(lang, "btn_channel"), url=settings.news_channel_url)]
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "btn_subscribe_channel"), url=settings.news_channel_url
+                )
+            ]
         )
     if settings.instagram_url:
         buttons.append(
-            [InlineKeyboardButton(text=t(lang, "btn_instagram"), url=settings.instagram_url)]
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "btn_subscribe_instagram"), url=settings.instagram_url
+                )
+            ]
         )
     buttons.append(
         [InlineKeyboardButton(text=t(lang, "btn_subscribed"), callback_data=SUBSCRIBE_CHECK_CALLBACK)]
