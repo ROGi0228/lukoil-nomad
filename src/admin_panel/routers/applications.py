@@ -301,6 +301,33 @@ async def request_video_again(
     )
 
 
+@router.post("/{application_id}/message", response_model=None)
+async def message_applicant(
+    application_id: int,
+    request: Request,
+    message: str = Form(...),
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    async with async_session_factory() as session:
+        application, user = await _load_application_and_user(session, application_id)
+        await create_log(
+            session,
+            application_id=application.id,
+            admin_user_id=admin.id,
+            action=ModerationAction.ADMIN_MESSAGE,
+            reason=message,
+        )
+        await session.commit()
+        telegram_id = user.telegram_id
+
+    bot: Bot = request.app.state.bot
+    await notify_user(bot, telegram_id, message)
+    return RedirectResponse(
+        f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
 @router.post("/{application_id}/toggle-blogger", response_model=None)
 async def toggle_blogger(
     application_id: int,

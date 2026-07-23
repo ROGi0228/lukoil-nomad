@@ -12,7 +12,16 @@ from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.admin_panel.auth import NotAuthenticatedError
-from src.admin_panel.routers import applications, auth, dashboard, health, selection, tasks, teams
+from src.admin_panel.routers import (
+    applications,
+    auth,
+    broadcast,
+    dashboard,
+    health,
+    selection,
+    tasks,
+    teams,
+)
 from src.core.config import get_settings
 
 
@@ -50,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(selection.router)
     app.include_router(teams.router)
     app.include_router(tasks.router)
+    app.include_router(broadcast.router)
 
     return app
 

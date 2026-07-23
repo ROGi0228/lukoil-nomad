@@ -84,6 +84,32 @@ async def list_stage2_candidates(session: AsyncSession) -> list[Application]:
     return list(result.scalars().all())
 
 
+async def list_application_contacts(
+    session: AsyncSession,
+    *,
+    status: ApplicationStatus | None = None,
+    city: str | None = None,
+    team_id: int | None = None,
+    no_team: bool = False,
+) -> list[tuple[int, str | None]]:
+    """(telegram_id, language) заявителей, подходящих под фильтр — для рассылки из админки."""
+    conditions = []
+    if status is not None:
+        conditions.append(Application.status == status)
+    if city:
+        conditions.append(Application.city.ilike(f"%{city}%"))
+    if no_team:
+        conditions.append(Application.team_id.is_(None))
+    elif team_id is not None:
+        conditions.append(Application.team_id == team_id)
+
+    query = select(User.telegram_id, User.language).join(Application, Application.user_id == User.id)
+    if conditions:
+        query = query.where(and_(*conditions))
+    result = await session.execute(query)
+    return list(result.tuples())
+
+
 async def next_participant_number(session: AsyncSession) -> str:
     """Возвращает следующий номер участника в формате NOMAD_001.
 

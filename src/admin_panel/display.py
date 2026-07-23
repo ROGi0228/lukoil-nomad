@@ -63,6 +63,7 @@ ACTION_LABELS: dict[ModerationAction, str] = {
     ModerationAction.REQUEST_REUPLOAD_PHOTO: "Запрошено фото заново",
     ModerationAction.REQUEST_REUPLOAD_VIDEO: "Запрошено видео заново",
     ModerationAction.APPROVE_DOCUMENT: "Документ одобрен, запрошено видео",
+    ModerationAction.ADMIN_MESSAGE: "Отправлено сообщение",
 }
 
 

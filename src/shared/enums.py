@@ -21,6 +21,7 @@ class ModerationAction(str, enum.Enum):
     # переведён к загрузке видео — в отличие от REQUEST_REUPLOAD_VIDEO, видео при
     # этом действии ещё ни разу не присылалось, это не повторный запрос.
     APPROVE_DOCUMENT = "approve_document"
+    ADMIN_MESSAGE = "admin_message"
 
 
 class SelectionStage(str, enum.Enum):
