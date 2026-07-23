@@ -1,58 +1,53 @@
-{% extends "base.html" %}
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}Рассылка — Nomad Lukoil{% endblock %}
+{% block title %}Рассылка — LUKOIL NOMAD{% endblock %}
 
-{% block body %}
-<header class="topbar">
-    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="whoami">{{ admin.username }}</span>
-        <button type="submit" class="link-button">Выйти</button>
-    </form>
-</header>
+{% block page_title %}Рассылка сообщений{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Личное сообщение — на странице заявки участника или блогера</p>{% endblock %}
 
-<main class="content">
-    <a class="back-link" href="/">&larr; К списку заявок</a>
+{% block content %}
+{% if sent_count is not none %}
+<p class="flash-banner">{{ icons.svg("check", 16) }} Отправлено {{ sent_count }} участникам.</p>
+{% endif %}
 
-    <h1>Рассылка сообщений</h1>
-    <p class="muted">Личное сообщение конкретному участнику или блогеру — на странице его заявки.</p>
+<form method="post" action="/broadcast" class="detail-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-    {% if sent_count is not none %}
-    <p class="total-count">Отправлено {{ sent_count }} участникам.</p>
+    <p class="field-group-label">Кому</p>
+    <div class="audience-picker">
+        <label class="radio-row">
+            <input type="radio" name="audience" value="all" {% if form.audience == "all" %}checked{% endif %}>
+            {{ icons.svg("award", 15) }} Всем победителям и блогерам
+        </label>
+        <label class="radio-row">
+            <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
+            {{ icons.svg("users", 15) }} Конкретной команде
+        </label>
+    </div>
+
+    <div class="form-field" style="max-width: 320px;">
+        <label for="broadcast-team">Команда</label>
+        <select id="broadcast-team" name="team">
+            <option value="">Выберите команду</option>
+            {% for team in teams %}
+            <option value="{{ team.id }}" {% if form.team == team.id | string %}selected{% endif %}>{{ team.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-field">
+        <label for="broadcast-message">Текст сообщения</label>
+        <textarea id="broadcast-message" name="message" rows="6" placeholder="Текст сообщения" required>{{ form.message }}</textarea>
+    </div>
+
+    {% if recipient_count is not none %}
+    <p class="total-count">{{ icons.svg("users", 13) }} Получателей: <strong>{{ recipient_count }}</strong></p>
     {% endif %}
 
-    <form method="post" action="/broadcast" class="detail-card">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-        <label>
-            <input type="radio" name="audience" value="all" {% if form.audience == "all" %}checked{% endif %}>
-            Всем победителям и блогерам
-        </label>
-        <label>
-            <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
-            Конкретной команде
-        </label>
-
-        <div class="filters">
-            <select name="team">
-                <option value="">Выберите команду</option>
-                {% for team in teams %}
-                <option value="{{ team.id }}" {% if form.team == team.id | string %}selected{% endif %}>{{ team.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <textarea name="message" rows="6" placeholder="Текст сообщения" required>{{ form.message }}</textarea>
-
-        {% if recipient_count is not none %}
-        <p class="total-count">Получателей: {{ recipient_count }}</p>
-        {% endif %}
-
-        <div class="inline-form">
-            <button type="submit" name="action" value="preview" class="action-button action-button--secondary">Показать получателей</button>
-            <button type="submit" name="action" value="send" class="action-button action-button--approve">Отправить</button>
-        </div>
-    </form>
-</main>
+    <div class="inline-form">
+        <button type="submit" name="action" value="preview" class="action-button action-button--secondary">{{ icons.svg("search", 15) }} Показать получателей</button>
+        <button type="submit" name="action" value="send" class="action-button action-button--approve">{{ icons.svg("send", 15) }} Отправить</button>
+    </div>
+</form>
 {% endblock %}

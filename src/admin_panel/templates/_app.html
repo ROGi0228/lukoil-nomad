@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "_icons.html" as icons %}
+
+{% block body %}
+<div class="app-shell">
+    <input type="checkbox" id="sidebar-toggle" class="sidebar-toggle-input">
+    <label for="sidebar-toggle" class="sidebar-scrim"></label>
+
+    <aside class="sidebar">
+        <div class="sidebar__brand">
+            <span class="sidebar__mark"></span>
+            <div>
+                <div class="sidebar__title">LUKOIL NOMAD</div>
+                <div class="sidebar__subtitle">Админ-панель</div>
+            </div>
+        </div>
+
+        <nav class="sidebar__nav">
+            <a href="/" class="sidebar__link{% if request.url.path == '/' or request.url.path.startswith('/applications') %} sidebar__link--active{% endif %}">
+                {{ icons.svg("inbox") }}<span>Заявки</span>
+            </a>
+            <a href="/selection" class="sidebar__link{% if request.url.path.startswith('/selection') %} sidebar__link--active{% endif %}">
+                {{ icons.svg("award") }}<span>Отбор и голосование</span>
+            </a>
+            <a href="/teams" class="sidebar__link{% if request.url.path.startswith('/teams') %} sidebar__link--active{% endif %}">
+                {{ icons.svg("users") }}<span>Команды</span>
+            </a>
+            <a href="/tasks" class="sidebar__link{% if request.url.path.startswith('/tasks') %} sidebar__link--active{% endif %}">
+                {{ icons.svg("clipboard-list") }}<span>Задания</span>
+            </a>
+            <a href="/broadcast" class="sidebar__link{% if request.url.path.startswith('/broadcast') %} sidebar__link--active{% endif %}">
+                {{ icons.svg("send") }}<span>Рассылка</span>
+            </a>
+        </nav>
+
+        <div class="sidebar__footer">
+            <form method="post" action="/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="sidebar__logout-btn">
+                    {{ icons.svg("log-out") }}<span>Выйти · {{ admin.username }}</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="app-main">
+        <header class="topbar">
+            <label for="sidebar-toggle" class="topbar__menu-btn" aria-label="Открыть меню">
+                {{ icons.svg("menu", 20) }}
+            </label>
+            <div class="topbar__heading">
+                <h1>{% block page_title %}{% endblock %}</h1>
+                {% block page_subtitle %}{% endblock %}
+            </div>
+            <div class="topbar__actions">{% block page_actions %}{% endblock %}</div>
+        </header>
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% endblock %}

@@ -1,167 +1,161 @@
-{% extends "base.html" %}
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}Заявка №{{ application.id }} — Nomad Lukoil{% endblock %}
+{% block title %}Заявка №{{ application.id }} — LUKOIL NOMAD{% endblock %}
 
-{% block body %}
-<header class="topbar">
-    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="whoami">{{ admin.username }}</span>
-        <button type="submit" class="link-button">Выйти</button>
-    </form>
-</header>
+{% block page_title %}{{ application.full_name }}{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Заявка №{{ application.id }}</p>{% endblock %}
 
-<main class="content">
-    <a class="back-link" href="/">&larr; К списку заявок</a>
+{% block content %}
+<a class="back-link" href="/">{{ icons.svg("chevron-left", 15) }} К списку заявок</a>
 
-    <h1>Заявка №{{ application.id }} — {{ application.full_name }}</h1>
-    <p class="current-status">
-        Статус:
-        <span class="status-badge status-badge--{{ status_css_class(application.status) }}">{{ status_labels[application.status] }}</span>
-        {% if selection_stage_label(application.selection_stage) %}
-        <span class="status-badge status-badge--{{ selection_stage_css_class(application.selection_stage) }}">{{ selection_stage_label(application.selection_stage) }}</span>
-        {% endif %}
-        {% if application.is_blogger %}
-        <span class="status-badge status-badge--waiting">Блогер</span>
-        {% endif %}
-    </p>
+<p class="current-status">
+    <span class="status-badge status-badge--{{ status_css_class(application.status) }}">{{ status_labels[application.status] }}</span>
+    {% if selection_stage_label(application.selection_stage) %}
+    <span class="status-badge status-badge--{{ selection_stage_css_class(application.selection_stage) }}">{{ selection_stage_label(application.selection_stage) }}</span>
+    {% endif %}
+    {% if application.is_blogger %}
+    <span class="status-badge status-badge--waiting">{{ icons.svg("star", 12) }} Блогер</span>
+    {% endif %}
+</p>
 
-    {% if application.verification_flags %}
-    <div class="flags">
-        {% for flag in application.verification_flags %}
-        <span class="flag-badge">{{ flag_label(flag) }}</span>
-        {% endfor %}
+{% if application.verification_flags %}
+<div class="flags">
+    {% for flag in application.verification_flags %}
+    <span class="flag-badge">{{ icons.svg("alert-triangle", 13) }} {{ flag_label(flag) }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<section class="detail-grid">
+    <div class="detail-card">
+        <h2>Анкета</h2>
+        <dl>
+            <dt>ФИО</dt><dd>{{ application.full_name }}</dd>
+            <dt>Телефон</dt><dd>{{ application.phone }}</dd>
+            <dt>Город</dt><dd>{{ application.city }}</dd>
+            <dt>Подана</dt><dd>{{ application.created_at | format_dt }}</dd>
+        </dl>
     </div>
+
+    <div class="detail-card">
+        <h2>Документ (OCR)</h2>
+        {% if ocr_parsed %}
+        <dl>
+            <dt>Фамилия</dt><dd>{{ ocr_parsed.surname or "—" }}</dd>
+            <dt>Имя/отчество</dt><dd>{{ ocr_parsed.given_names or "—" }}</dd>
+            <dt>Дата рождения</dt><dd>{{ ocr_parsed.birth_date or "—" }}</dd>
+            <dt>Номер ВУ</dt><dd>{{ application.document_number or ocr_parsed.license_number or "—" }}</dd>
+            <dt>ИИН</dt><dd>{{ application.document_iin or ocr_parsed.iin or "—" }}</dd>
+            <dt>Срок действия</dt><dd>{{ ocr_parsed.expiry_date or "—" }}</dd>
+        </dl>
+        {% else %}
+        <p class="muted">Документ ещё не проверен.</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="detail-grid">
+    <div class="detail-card">
+        <h2>{{ icons.svg("image", 16) }} Фото удостоверения</h2>
+        {% if photo_url %}
+        <img class="document-photo" src="{{ photo_url }}" alt="Фото водительского удостоверения">
+        {% else %}
+        <p class="muted">Фото ещё не загружено.</p>
+        {% endif %}
+    </div>
+
+    <div class="detail-card">
+        <h2>{{ icons.svg("video", 16) }} Видео-визитка</h2>
+        {% if video_url %}
+        <video class="document-video" src="{{ video_url }}" controls></video>
+        {% else %}
+        <p class="muted">Видео ещё не загружено.</p>
+        {% endif %}
+    </div>
+</section>
+
+{% if ocr_raw_text %}
+<details class="raw-ocr">
+    <summary>Сырой текст OCR</summary>
+    <pre>{{ ocr_raw_text }}</pre>
+</details>
+{% endif %}
+
+<section class="actions">
+    <h2>Действия</h2>
+    {% if application.video_key %}
+    <form method="post" action="/applications/{{ application.id }}/approve" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Одобрить</button>
+    </form>
     {% endif %}
 
-    <section class="detail-grid">
-        <div class="detail-card">
-            <h2>Анкета</h2>
-            <dl>
-                <dt>ФИО</dt><dd>{{ application.full_name }}</dd>
-                <dt>Телефон</dt><dd>{{ application.phone }}</dd>
-                <dt>Город</dt><dd>{{ application.city }}</dd>
-                <dt>Подана</dt><dd>{{ application.created_at | format_dt }}</dd>
-            </dl>
-        </div>
+    <form method="post" action="/applications/{{ application.id }}/request-photo" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="action-button action-button--secondary">{{ icons.svg("rotate-ccw", 15) }} Запросить фото заново</button>
+    </form>
 
-        <div class="detail-card">
-            <h2>Документ (OCR)</h2>
-            {% if ocr_parsed %}
-            <dl>
-                <dt>Фамилия</dt><dd>{{ ocr_parsed.surname or "—" }}</dd>
-                <dt>Имя/отчество</dt><dd>{{ ocr_parsed.given_names or "—" }}</dd>
-                <dt>Дата рождения</dt><dd>{{ ocr_parsed.birth_date or "—" }}</dd>
-                <dt>Номер ВУ</dt><dd>{{ application.document_number or ocr_parsed.license_number or "—" }}</dd>
-                <dt>ИИН</dt><dd>{{ application.document_iin or ocr_parsed.iin or "—" }}</dd>
-                <dt>Срок действия</dt><dd>{{ ocr_parsed.expiry_date or "—" }}</dd>
-            </dl>
-            {% else %}
-            <p class="muted">Документ ещё не проверен.</p>
-            {% endif %}
-        </div>
-    </section>
-
-    <section class="detail-grid">
-        <div class="detail-card">
-            <h2>Фото удостоверения</h2>
-            {% if photo_url %}
-            <img class="document-photo" src="{{ photo_url }}" alt="Фото водительского удостоверения">
-            {% else %}
-            <p class="muted">Фото ещё не загружено.</p>
-            {% endif %}
-        </div>
-
-        <div class="detail-card">
-            <h2>Видео-визитка</h2>
-            {% if video_url %}
-            <video class="document-video" src="{{ video_url }}" controls></video>
-            {% else %}
-            <p class="muted">Видео ещё не загружено.</p>
-            {% endif %}
-        </div>
-    </section>
-
-    {% if ocr_raw_text %}
-    <details class="raw-ocr">
-        <summary>Сырой текст OCR</summary>
-        <pre>{{ ocr_raw_text }}</pre>
-    </details>
+    {% if application.video_key %}
+    <form method="post" action="/applications/{{ application.id }}/request-video" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="action-button action-button--secondary">{{ icons.svg("rotate-ccw", 15) }} Запросить видео заново</button>
+    </form>
+    {% else %}
+    <form method="post" action="/applications/{{ application.id }}/approve-document" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="action-button action-button--secondary">{{ icons.svg("check", 15) }} Документ в порядке — запросить видео</button>
+    </form>
     {% endif %}
 
-    <section class="actions">
-        <h2>Действия</h2>
-        {% if application.video_key %}
-        <form method="post" action="/applications/{{ application.id }}/approve" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--approve">Одобрить</button>
-        </form>
-        {% endif %}
+    <form method="post" action="/applications/{{ application.id }}/reject" class="reject-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="reason" placeholder="Причина отказа" required>
+        <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 15) }} Отклонить</button>
+    </form>
 
-        <form method="post" action="/applications/{{ application.id }}/request-photo" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--secondary">Запросить фото заново</button>
-        </form>
+    <form method="post" action="/applications/{{ application.id }}/toggle-blogger" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="action-button action-button--secondary">
+            {{ icons.svg("star", 15) }}
+            {% if application.is_blogger %}Убрать отметку блогера{% else %}Отметить как блогера{% endif %}
+        </button>
+    </form>
 
-        {% if application.video_key %}
-        <form method="post" action="/applications/{{ application.id }}/request-video" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--secondary">Запросить видео заново</button>
-        </form>
-        {% else %}
-        <form method="post" action="/applications/{{ application.id }}/approve-document" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--secondary">Документ в порядке — запросить видео</button>
-        </form>
-        {% endif %}
+    <form method="post" action="/applications/{{ application.id }}/message" class="reject-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="message" placeholder="Сообщение участнику" required>
+        <button type="submit" class="action-button action-button--secondary">{{ icons.svg("message-square", 15) }} Написать</button>
+    </form>
+</section>
 
-        <form method="post" action="/applications/{{ application.id }}/reject" class="reject-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="text" name="reason" placeholder="Причина отказа" required>
-            <button type="submit" class="action-button action-button--reject">Отклонить</button>
-        </form>
-
-        <form method="post" action="/applications/{{ application.id }}/toggle-blogger" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--secondary">
-                {% if application.is_blogger %}Убрать отметку блогера{% else %}Отметить как блогера{% endif %}
-            </button>
-        </form>
-
-        <form method="post" action="/applications/{{ application.id }}/message" class="reject-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="text" name="message" placeholder="Сообщение участнику" required>
-            <button type="submit" class="action-button action-button--secondary">Написать</button>
-        </form>
-    </section>
-
-    <section class="moderation-log">
-        <h2>История модерации</h2>
-        {% if logs %}
-        <table class="applications-table">
-            <thead>
-                <tr>
-                    <th>Когда</th>
-                    <th>Кто</th>
-                    <th>Действие</th>
-                    <th>Причина</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for log in logs %}
-                <tr>
-                    <td>{{ log.created_at | format_dt }}</td>
-                    <td>{{ log.admin_user.username }}</td>
-                    <td>{{ action_labels[log.action] }}</td>
-                    <td>{{ log.reason or "—" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="muted">Пока нет ни одного действия по этой заявке.</p>
-        {% endif %}
-    </section>
-</main>
+<section class="moderation-log">
+    <h2>История модерации</h2>
+    {% if logs %}
+    <div class="table-scroll">
+    <table class="applications-table">
+        <thead>
+            <tr>
+                <th>Когда</th>
+                <th>Кто</th>
+                <th>Действие</th>
+                <th>Причина</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.created_at | format_dt }}</td>
+                <td>{{ log.admin_user.username }}</td>
+                <td>{{ action_labels[log.action] }}</td>
+                <td>{{ log.reason or "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">Пока нет ни одного действия по этой заявке.</p>
+    {% endif %}
+</section>
 {% endblock %}

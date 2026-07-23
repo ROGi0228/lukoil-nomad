@@ -1,74 +1,91 @@
-{% extends "base.html" %}
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}Задания — Nomad Lukoil{% endblock %}
+{% block title %}Задания — LUKOIL NOMAD{% endblock %}
 
-{% block body %}
-<header class="topbar">
-    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="whoami">{{ admin.username }}</span>
-        <button type="submit" class="link-button">Выйти</button>
-    </form>
-</header>
+{% block page_title %}Задания и рейтинг{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">5 / 3 / 1 балл за первые три места, штраф за просрочку</p>{% endblock %}
+{% block page_actions %}<a class="link-button" href="/teams">{{ icons.svg("users", 15) }} Команды</a>{% endblock %}
 
-<main class="content">
-    <a class="back-link" href="/teams">&larr; К командам</a>
+{% block content %}
+<a class="back-link" href="/teams">{{ icons.svg("chevron-left", 15) }} К командам</a>
 
-    <h1>Задания и рейтинг</h1>
-
-    <section class="detail-card" style="margin-bottom: 1.5rem;">
-        <h2>Рейтинг команд</h2>
+<div class="stack">
+    <section class="detail-card">
+        <h2 class="section-title">{{ icons.svg("trophy", 17) }} Рейтинг команд</h2>
         {% if leaderboard %}
+        <div class="table-scroll">
         <table class="applications-table">
             <thead><tr><th>#</th><th>Команда</th><th>Баллы</th></tr></thead>
             <tbody>
                 {% for team in leaderboard %}
                 <tr>
-                    <td>{{ loop.index }}</td>
+                    <td style="font-family: var(--font-mono);">{{ loop.index }}</td>
                     <td><a href="/teams/{{ team.id }}">{{ team.name }}</a></td>
-                    <td>{{ scores[team.id] }}</td>
+                    <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <p class="muted">Пока нет ни одной команды.</p>
         {% endif %}
     </section>
 
-    <section class="detail-card" style="margin-bottom: 1.5rem;">
-        <h2>Новое задание</h2>
+    <section class="detail-card">
+        <h2 class="section-title">{{ icons.svg("plus", 17) }} Новое задание</h2>
         <form method="post" action="/tasks">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <p><input type="text" name="title" placeholder="Название задания" required style="width: 100%;"></p>
-            <p><textarea name="description" placeholder="Текст задания для команд" required style="width: 100%; min-height: 5rem;"></textarea></p>
 
-            <p>
-                <label>Дата отправки <input type="date" name="send_date" required></label>
-                <label>Время отправки <input type="time" name="send_time" value="09:00" required></label>
-            </p>
+            <div class="form-field">
+                <label for="task-title">Название задания</label>
+                <input type="text" id="task-title" name="title" placeholder="Например, «Фото у заправки»" required>
+            </div>
 
-            <p>
-                <label><input type="checkbox" name="is_daily" value="true"> Задание дня (дедлайн — конец суток отправки)</label>
-            </p>
+            <div class="form-field">
+                <label for="task-description">Текст задания для команд</label>
+                <textarea id="task-description" name="description" placeholder="Что нужно сделать и как отчитаться" required></textarea>
+            </div>
 
-            <p>
-                <label>Дедлайн — дата <input type="date" name="deadline_date"></label>
-                <label>время <input type="time" name="deadline_time"></label>
-                <span class="muted">(не нужно, если отмечено «Задание дня»)</span>
-            </p>
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="send-date">Дата отправки</label>
+                    <input type="date" id="send-date" name="send_date" required>
+                </div>
+                <div class="form-field">
+                    <label for="send-time">Время отправки</label>
+                    <input type="time" id="send-time" name="send_time" value="09:00" required>
+                </div>
+            </div>
 
-            <p>
-                <label>Штраф за просрочку, баллы <input type="number" name="penalty_points" value="2" min="0" style="width: 5rem;"></label>
-            </p>
+            <label class="checkbox-row" style="margin-bottom: 0.9rem;">
+                <input type="checkbox" name="is_daily" value="true"> Задание дня (дедлайн — конец суток отправки)
+            </label>
 
-            <button type="submit" class="action-button action-button--approve">Создать и запланировать</button>
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="deadline-date">Дедлайн — дата</label>
+                    <input type="date" id="deadline-date" name="deadline_date">
+                </div>
+                <div class="form-field">
+                    <label for="deadline-time">Дедлайн — время</label>
+                    <input type="time" id="deadline-time" name="deadline_time">
+                </div>
+            </div>
+            <p class="field-hint">Не нужно заполнять, если отмечено «Задание дня».</p>
+
+            <div class="form-field" style="max-width: 220px;">
+                <label for="penalty-points">Штраф за просрочку, баллы</label>
+                <input type="number" id="penalty-points" name="penalty_points" value="2" min="0">
+            </div>
+
+            <button type="submit" class="action-button action-button--approve">{{ icons.svg("send", 15) }} Создать и запланировать</button>
         </form>
     </section>
 
     <section class="detail-card">
-        <h2>Все задания</h2>
+        <h2 class="section-title">{{ icons.svg("clipboard-list", 17) }} Все задания</h2>
         {% if tasks %}
         <div class="table-scroll">
         <table class="applications-table">
@@ -87,8 +104,8 @@
                     <td>{{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}</td>
                     <td>{{ task.send_at | format_dt }}</td>
                     <td>{{ task.deadline_at | format_dt }}</td>
-                    <td>{% if task.dispatched %}Да{% else %}Ожидает{% endif %}</td>
-                    <td><a href="/tasks/{{ task.id }}">Детали</a></td>
+                    <td>{% if task.dispatched %}<span class="status-badge status-badge--approved">Да</span>{% else %}<span class="status-badge status-badge--waiting">Ожидает</span>{% endif %}</td>
+                    <td><a href="/tasks/{{ task.id }}">Детали {{ icons.svg("chevron-right", 13) }}</a></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -98,5 +115,5 @@
         <p class="muted">Заданий пока нет.</p>
         {% endif %}
     </section>
-</main>
+</div>
 {% endblock %}

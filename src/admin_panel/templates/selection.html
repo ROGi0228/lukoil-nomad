@@ -1,25 +1,16 @@
-{% extends "base.html" %}
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}Отбор — Nomad Lukoil{% endblock %}
+{% block title %}Отбор — LUKOIL NOMAD{% endblock %}
 
-{% block body %}
-<header class="topbar">
-    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="whoami">{{ admin.username }}</span>
-        <button type="submit" class="link-button">Выйти</button>
-    </form>
-</header>
+{% block page_title %}Отбор и голосование{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Два этапа: голосование в канале → финальные победители</p>{% endblock %}
 
-<main class="content">
-    <a class="back-link" href="/">&larr; К списку заявок</a>
-
-    <h1>Отбор и голосование</h1>
-
-    <section class="detail-card" style="margin-bottom: 1.5rem;">
-        <h2>Этап 1 — кто проходит в голосование</h2>
-        <p class="muted">Отметьте одобренных участников, чьи видео-визитки прошли в голосование в канале. Остальные получат вежливый отказ.</p>
+{% block content %}
+<div class="stack">
+    <section class="detail-card">
+        <h2 class="section-title">{{ icons.svg("award", 17) }} Этап 1 — кто проходит в голосование</h2>
+        <p class="section-intro">Отметьте одобренных участников, чьи видео-визитки проходят в голосование в канале. Остальные получат вежливый отказ.</p>
 
         {% if stage1_candidates %}
         <form method="post" action="/selection/stage1">
@@ -48,8 +39,8 @@
                 </tbody>
             </table>
             </div>
-            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.75rem;">
-                Отправить выбранных в голосование
+            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.9rem;">
+                {{ icons.svg("check", 15) }} Отправить выбранных в голосование
             </button>
         </form>
         {% else %}
@@ -58,8 +49,8 @@
     </section>
 
     <section class="detail-card">
-        <h2>Этап 2 — выбор победителей</h2>
-        <p class="muted">Из тех, кто прошёл в голосование, отметьте финальных победителей — они отправятся в экспедицию. Остальные получат сообщение о вылете из конкурса.</p>
+        <h2 class="section-title">{{ icons.svg("trophy", 17) }} Этап 2 — выбор победителей</h2>
+        <p class="section-intro">Из тех, кто прошёл в голосование, отметьте финальных победителей — они отправятся в экспедицию. Остальные получат сообщение о вылете из конкурса.</p>
 
         {% if stage2_candidates %}
         <form method="post" action="/selection/stage2">
@@ -88,13 +79,13 @@
                 </tbody>
             </table>
             </div>
-            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.75rem;">
-                Объявить победителей
+            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.9rem;">
+                {{ icons.svg("trophy", 15) }} Объявить победителей
             </button>
         </form>
         {% else %}
         <p class="muted">Пока никто не прошёл в голосование (этап 1).</p>
         {% endif %}
     </section>
-</main>
+</div>
 {% endblock %}

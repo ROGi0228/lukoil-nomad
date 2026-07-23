@@ -1,53 +1,46 @@
-{% extends "base.html" %}
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}{{ task.title }} — Nomad Lukoil{% endblock %}
+{% block title %}{{ task.title }} — LUKOIL NOMAD{% endblock %}
 
-{% block body %}
-<header class="topbar">
-    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="whoami">{{ admin.username }}</span>
-        <button type="submit" class="link-button">Выйти</button>
-    </form>
-</header>
+{% block page_title %}{{ task.title }}{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">{{ task.description }}</p>{% endblock %}
 
-<main class="content">
-    <a class="back-link" href="/tasks">&larr; К заданиям</a>
+{% block content %}
+<a class="back-link" href="/tasks">{{ icons.svg("chevron-left", 15) }} К заданиям</a>
 
-    <h1>{{ task.title }}</h1>
-    <p class="muted">{{ task.description }}</p>
-    <p class="current-status">
-        Отправка: {{ task.send_at | format_dt }} · Дедлайн: {{ task.deadline_at | format_dt }}
-        {% if task.is_daily %}· <span class="status-badge status-badge--waiting">Задание дня</span>{% endif %}
-    </p>
+<p class="current-status">
+    {{ icons.svg("clock", 14) }} Отправка: {{ task.send_at | format_dt }} &nbsp;·&nbsp; Дедлайн: {{ task.deadline_at | format_dt }}
+    {% if task.is_daily %}<span class="status-badge status-badge--waiting">Задание дня</span>{% endif %}
+</p>
 
-    <section class="detail-card">
-        <h2>Выполнение по командам</h2>
-        {% if dispatches %}
-        <table class="applications-table">
-            <thead>
-                <tr><th>Команда</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th></tr>
-            </thead>
-            <tbody>
-                {% for d in dispatches %}
-                <tr>
-                    <td><a href="/teams/{{ d.team_id }}">{{ d.team.name }}</a></td>
-                    <td>{{ d.sent_at | format_dt }}</td>
-                    <td>
-                        {% if d.completed_at %}{{ d.completed_at | format_dt }}
-                        {% elif d.penalty_applied %}<span class="status-badge status-badge--rejected">Просрочено</span>
-                        {% else %}<span class="muted">Ожидается</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ d.points_awarded if d.points_awarded is not none else "—" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="muted">Задание ещё не разослано ни одной команде.</p>
-        {% endif %}
-    </section>
-</main>
+<section class="detail-card">
+    <h2 class="section-title">{{ icons.svg("clipboard-list", 17) }} Выполнение по командам</h2>
+    {% if dispatches %}
+    <div class="table-scroll">
+    <table class="applications-table">
+        <thead>
+            <tr><th>Команда</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th></tr>
+        </thead>
+        <tbody>
+            {% for d in dispatches %}
+            <tr>
+                <td><a href="/teams/{{ d.team_id }}">{{ d.team.name }}</a></td>
+                <td>{{ d.sent_at | format_dt }}</td>
+                <td>
+                    {% if d.completed_at %}{{ d.completed_at | format_dt }}
+                    {% elif d.penalty_applied %}<span class="status-badge status-badge--rejected">Просрочено</span>
+                    {% else %}<span class="status-badge status-badge--waiting">Ожидается</span>
+                    {% endif %}
+                </td>
+                <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ d.points_awarded if d.points_awarded is not none else "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">Задание ещё не разослано ни одной команде.</p>
+    {% endif %}
+</section>
 {% endblock %}

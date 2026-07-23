@@ -1,106 +1,96 @@
-{% extends "base.html" %}
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
 
-{% block title %}Заявки — Nomad Lukoil{% endblock %}
+{% block title %}Заявки — LUKOIL NOMAD{% endblock %}
 
-{% block body %}
-<header class="topbar">
-    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <span class="whoami">{{ admin.username }}</span>
-        <button type="submit" class="link-button">Выйти</button>
-    </form>
-</header>
+{% block page_title %}Заявки{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Регистрации участников экспедиции</p>{% endblock %}
 
-<main class="content">
-    <section class="registration-toggle">
-        {% if registration_closed %}
-        <span class="status-badge status-badge--rejected">Приём заявок закрыт</span>
-        <form method="post" action="/registration/open" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--approve">Открыть приём заявок</button>
-        </form>
-        {% else %}
-        <span class="status-badge status-badge--approved">Приём заявок открыт</span>
-        <form method="post" action="/registration/close" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="action-button action-button--reject">Закрыть приём заявок</button>
-        </form>
-        {% endif %}
-        <a class="link-button" href="/selection">Отбор и голосование →</a>
-        <a class="link-button" href="/teams">Команды и задания →</a>
-        <a class="link-button" href="/broadcast">Рассылка сообщений →</a>
-    </section>
+{% block page_actions %}
+{% if registration_closed %}
+<span class="status-badge status-badge--rejected">Приём закрыт</span>
+<form method="post" action="/registration/open" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Открыть приём</button>
+</form>
+{% else %}
+<span class="status-badge status-badge--approved">Приём открыт</span>
+<form method="post" action="/registration/close" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 15) }} Закрыть приём</button>
+</form>
+{% endif %}
+{% endblock %}
 
-    <section class="status-cards">
+{% block content %}
+<section class="status-cards">
+    {% for status_value, label in status_labels.items() %}
+    <a
+        class="status-card status-card--{{ status_css_class(status_value) }}{% if filters.status == status_value.value %} status-card--active{% endif %}"
+        href="/?status={{ status_value.value }}"
+    >
+        <span class="status-card__count">{{ status_counts[status_value] }}</span>
+        <span class="status-card__label">{{ label }}</span>
+    </a>
+    {% endfor %}
+</section>
+
+<form class="filters" method="get" action="/">
+    <input type="text" name="search" placeholder="ФИО или телефон" value="{{ filters.search }}">
+    <input type="text" name="city" placeholder="Город" value="{{ filters.city }}">
+    <select name="status">
+        <option value="">Все статусы</option>
         {% for status_value, label in status_labels.items() %}
-        <a
-            class="status-card status-card--{{ status_css_class(status_value) }}{% if filters.status == status_value.value %} status-card--active{% endif %}"
-            href="/?status={{ status_value.value }}"
-        >
-            <span class="status-card__count">{{ status_counts[status_value] }}</span>
-            <span class="status-card__label">{{ label }}</span>
-        </a>
+        <option value="{{ status_value.value }}" {% if filters.status == status_value.value %}selected{% endif %}>
+            {{ label }}
+        </option>
         {% endfor %}
-    </section>
+    </select>
+    <label>c <input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+    <label>по <input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+    <button type="submit" class="action-button action-button--secondary">{{ icons.svg("search", 15) }} Найти</button>
+    <a class="link-button" href="/">Сбросить</a>
+</form>
 
-    <form class="filters" method="get" action="/">
-        <input type="text" name="search" placeholder="ФИО или телефон" value="{{ filters.search }}">
-        <input type="text" name="city" placeholder="Город" value="{{ filters.city }}">
-        <select name="status">
-            <option value="">Все статусы</option>
-            {% for status_value, label in status_labels.items() %}
-            <option value="{{ status_value.value }}" {% if filters.status == status_value.value %}selected{% endif %}>
-                {{ label }}
-            </option>
-            {% endfor %}
-        </select>
-        <label>c <input type="date" name="date_from" value="{{ filters.date_from }}"></label>
-        <label>по <input type="date" name="date_to" value="{{ filters.date_to }}"></label>
-        <button type="submit">Найти</button>
-        <a class="link-button" href="/">Сбросить</a>
-    </form>
+<p class="total-count">Всего найдено: {{ total }}</p>
 
-    <p class="total-count">Всего найдено: {{ total }}</p>
-
-    <div class="table-scroll">
-    <table class="applications-table">
-        <thead>
-            <tr>
-                <th>ФИО</th>
-                <th>Телефон</th>
-                <th>Город</th>
-                <th>Статус</th>
-                <th>Дата подачи</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for app in applications %}
-            <tr onclick="window.location='/applications/{{ app.id }}'" class="clickable-row">
-                <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
-                <td>{{ app.phone }}</td>
-                <td>{{ app.city }}</td>
-                <td><span class="status-badge status-badge--{{ status_css_class(app.status) }}">{{ status_labels[app.status] }}</span></td>
-                <td>{{ app.created_at | format_dt }}</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" class="empty-row">Заявок не найдено</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    </div>
-
-    {% if total_pages > 1 %}
-    <nav class="pagination">
-        {% for page_number in range(1, total_pages + 1) %}
-        <a
-            class="page-link{% if page_number == page %} page-link--active{% endif %}"
-            href="/?page={{ page_number }}&status={{ filters.status }}&city={{ filters.city }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&search={{ filters.search }}"
-        >{{ page_number }}</a>
+<div class="table-scroll">
+<table class="applications-table">
+    <thead>
+        <tr>
+            <th>ФИО</th>
+            <th>Телефон</th>
+            <th>Город</th>
+            <th>Статус</th>
+            <th>Дата подачи</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for app in applications %}
+        <tr onclick="window.location='/applications/{{ app.id }}'" class="clickable-row">
+            <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
+            <td>{{ app.phone }}</td>
+            <td>{{ app.city }}</td>
+            <td><span class="status-badge status-badge--{{ status_css_class(app.status) }}">{{ status_labels[app.status] }}</span></td>
+            <td>{{ app.created_at | format_dt }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5" class="empty-row">Заявок не найдено</td>
+        </tr>
         {% endfor %}
-    </nav>
-    {% endif %}
-</main>
+    </tbody>
+</table>
+</div>
+
+{% if total_pages > 1 %}
+<nav class="pagination">
+    {% for page_number in range(1, total_pages + 1) %}
+    <a
+        class="page-link{% if page_number == page %} page-link--active{% endif %}"
+        href="/?page={{ page_number }}&status={{ filters.status }}&city={{ filters.city }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&search={{ filters.search }}"
+    >{{ page_number }}</a>
+    {% endfor %}
+</nav>
+{% endif %}
 {% endblock %}
