@@ -1,11 +1,13 @@
 import math
 
+from aiogram import Bot
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette import status as http_status
 
 from src.admin_panel.auth import get_current_admin
-from src.admin_panel.csrf import get_csrf_token
+from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import (
     STATUS_LABELS,
     format_dt,
@@ -13,10 +15,17 @@ from src.admin_panel.display import (
     parse_status,
     status_css_class,
 )
+from src.bot.i18n import resolve_lang, t
+from src.bot.notify import notify_user
 from src.db.models.admin_user import AdminUser
+from src.db.repositories.app_settings_repository import (
+    is_registration_closed,
+    set_registration_closed,
+)
 from src.db.repositories.application_repository import (
     count_applications_by_status,
     list_applications,
+    list_incomplete_applicants,
 )
 from src.db.session import async_session_factory
 
@@ -44,6 +53,7 @@ async def dashboard(
 
     async with async_session_factory() as session:
         status_counts = await count_applications_by_status(session)
+        registration_closed = await is_registration_closed(session)
         applications, total = await list_applications(
             session,
             status=status_filter,
@@ -70,6 +80,7 @@ async def dashboard(
             "total": total,
             "page": page,
             "total_pages": total_pages,
+            "registration_closed": registration_closed,
             "filters": {
                 "status": status or "",
                 "city": city or "",
@@ -79,3 +90,34 @@ async def dashboard(
             },
         },
     )
+
+
+@router.post("/registration/close", response_model=None)
+async def close_registration(
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    async with async_session_factory() as session:
+        await set_registration_closed(session, True)
+        applicants = await list_incomplete_applicants(session)
+        await session.commit()
+
+    bot: Bot = request.app.state.bot
+    for telegram_id, language in applicants:
+        lang = resolve_lang(language)
+        await notify_user(bot, telegram_id, t(lang, "registration_closed"))
+
+    return RedirectResponse("/", status_code=http_status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/registration/open", response_model=None)
+async def open_registration(
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    async with async_session_factory() as session:
+        await set_registration_closed(session, False)
+        await session.commit()
+
+    return RedirectResponse("/", status_code=http_status.HTTP_303_SEE_OTHER)

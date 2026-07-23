@@ -11,8 +11,11 @@ from src.bot.keyboards.document import (
     NO_LICENSE_CALLBACK,
     no_license_keyboard,
 )
+from src.bot.keyboards.start import registration_closed_keyboard
 from src.bot.states.document_states import DocumentStates
+from src.core.config import Settings
 from src.core.logging import get_logger
+from src.db.repositories.app_settings_repository import is_registration_closed
 from src.db.repositories.application_repository import get_application_by_user_id
 from src.db.repositories.user_repository import get_or_create_user
 from src.services.storage.s3_storage import S3Storage
@@ -41,12 +44,20 @@ async def on_document_photo(
     db_session: AsyncSession,
     storage: S3Storage,
     arq_pool: ArqRedis,
+    settings: Settings,
 ) -> None:
     if message.from_user is None:
         return
 
     user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
     lang = resolve_lang(user.language)
+
+    if await is_registration_closed(db_session):
+        await state.clear()
+        await message.answer(
+            t(lang, "registration_closed"), reply_markup=registration_closed_keyboard(lang, settings)
+        )
+        return
 
     file_id: str | None = None
     is_pdf = False

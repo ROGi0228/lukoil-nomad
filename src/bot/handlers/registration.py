@@ -14,7 +14,12 @@ from src.bot.keyboards.registration import (
     pdn_consent_keyboard,
     phone_request_keyboard,
 )
-from src.bot.keyboards.start import JOIN_CALLBACK, SUBSCRIBE_CHECK_CALLBACK, subscribe_keyboard
+from src.bot.keyboards.start import (
+    JOIN_CALLBACK,
+    SUBSCRIBE_CHECK_CALLBACK,
+    registration_closed_keyboard,
+    subscribe_keyboard,
+)
 from src.bot.states.document_states import DocumentStates
 from src.bot.states.registration_states import RegistrationStates
 from src.bot.states.video_states import VideoStates
@@ -22,6 +27,7 @@ from src.bot.utils.subscription import is_subscribed_to_channel
 from src.bot.utils.validators import normalize_phone, validate_city, validate_full_name
 from src.core.config import Settings
 from src.core.logging import get_logger
+from src.db.repositories.app_settings_repository import is_registration_closed
 from src.db.repositories.application_repository import (
     create_application,
     get_application_by_user_id,
@@ -41,6 +47,14 @@ _STATUS_TEXT_KEYS: dict[ApplicationStatus, str] = {
     ApplicationStatus.PENDING_MODERATION: "status_pending_moderation",
     ApplicationStatus.APPROVED: "status_approved",
     ApplicationStatus.REJECTED: "status_rejected",
+}
+
+# Заявки на этих стадиях уже прошли свою часть — приём закрыт не влияет на них,
+# им всегда показываем реальный статус, а не сообщение о закрытии.
+_COMPLETE_STATUSES = {
+    ApplicationStatus.PENDING_MODERATION,
+    ApplicationStatus.APPROVED,
+    ApplicationStatus.REJECTED,
 }
 
 
@@ -84,6 +98,17 @@ async def on_join(
     user = await get_or_create_user(db_session, callback.from_user.id, callback.from_user.username)
     lang = resolve_lang(user.language)
     existing = await get_application_by_user_id(db_session, user.id)
+
+    if existing is not None and existing.status in _COMPLETE_STATUSES:
+        await callback.message.answer(t(lang, _STATUS_TEXT_KEYS[existing.status]))
+        return
+
+    if await is_registration_closed(db_session):
+        await callback.message.answer(
+            t(lang, "registration_closed"), reply_markup=registration_closed_keyboard(lang, settings)
+        )
+        return
+
     if existing is not None:
         await callback.message.answer(t(lang, _STATUS_TEXT_KEYS[existing.status]))
         if existing.status == ApplicationStatus.PENDING_DOCUMENT:

@@ -31,6 +31,15 @@ def start_keyboard(lang: Lang, settings: Settings) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def registration_closed_keyboard(lang: Lang, settings: Settings) -> InlineKeyboardMarkup:
+    buttons: list[list[InlineKeyboardButton]] = []
+    if settings.news_channel_url:
+        buttons.append(
+            [InlineKeyboardButton(text=t(lang, "btn_channel"), url=settings.news_channel_url)]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
 def subscribe_keyboard(lang: Lang, settings: Settings) -> InlineKeyboardMarkup:
     buttons: list[list[InlineKeyboardButton]] = []
     if settings.news_channel_url:

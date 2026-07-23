@@ -569,6 +569,19 @@ h1, h2 {
     box-shadow: var(--shadow-sm);
 }
 
+.registration-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1.1rem;
+    box-shadow: var(--shadow-sm);
+}
+
 .actions h2 {
     width: 100%;
     font-size: 1rem;

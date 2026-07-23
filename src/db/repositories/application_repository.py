@@ -5,9 +5,21 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.application import Application
+from src.db.models.user import User
 from src.shared.enums import ApplicationStatus
 
 _ALMATY_TZ = ZoneInfo("Asia/Almaty")
+
+# Заявки, ещё не дошедшие до модерации — им отправляется уведомление при закрытии
+# приёма заявок. PENDING_MODERATION/APPROVED/REJECTED не трогаем: там участник уже
+# полностью прошёл свою часть, решение по нему не зависит от приёма новых заявок.
+_INCOMPLETE_STATUSES = (
+    ApplicationStatus.DRAFT,
+    ApplicationStatus.PENDING_DOCUMENT,
+    ApplicationStatus.PENDING_OCR,
+    ApplicationStatus.DOCUMENT_FLAGGED,
+    ApplicationStatus.PENDING_VIDEO,
+)
 
 
 async def get_application_by_user_id(session: AsyncSession, user_id: int) -> Application | None:
@@ -38,6 +50,17 @@ async def create_application(
     session.add(application)
     await session.flush()
     return application
+
+
+async def list_incomplete_applicants(session: AsyncSession) -> list[tuple[int, str | None]]:
+    """(telegram_id, language) всех, чья заявка не дошла до модерации — для рассылки
+    уведомления при закрытии приёма заявок."""
+    result = await session.execute(
+        select(User.telegram_id, User.language)
+        .join(Application, Application.user_id == User.id)
+        .where(Application.status.in_(_INCOMPLETE_STATUSES))
+    )
+    return list(result.tuples())
 
 
 async def next_participant_number(session: AsyncSession) -> str:

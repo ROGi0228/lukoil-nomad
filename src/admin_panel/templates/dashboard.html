@@ -13,6 +13,22 @@
 </header>
 
 <main class="content">
+    <section class="registration-toggle">
+        {% if registration_closed %}
+        <span class="status-badge status-badge--rejected">Приём заявок закрыт</span>
+        <form method="post" action="/registration/open" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="action-button action-button--approve">Открыть приём заявок</button>
+        </form>
+        {% else %}
+        <span class="status-badge status-badge--approved">Приём заявок открыт</span>
+        <form method="post" action="/registration/close" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="action-button action-button--reject">Закрыть приём заявок</button>
+        </form>
+        {% endif %}
+    </section>
+
     <section class="status-cards">
         {% for status_value, label in status_labels.items() %}
         <a
