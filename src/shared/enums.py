@@ -21,3 +21,14 @@ class ModerationAction(str, enum.Enum):
     # переведён к загрузке видео — в отличие от REQUEST_REUPLOAD_VIDEO, видео при
     # этом действии ещё ни разу не присылалось, это не повторный запрос.
     APPROVE_DOCUMENT = "approve_document"
+
+
+class SelectionStage(str, enum.Enum):
+    """Стадия конкурсного отбора — независима от ApplicationStatus (тот про пайплайн
+    регистрации/модерации документов, этот — про голосование за уже одобренных).
+    NULL на Application означает "ещё не участвует ни в каком отборе" (только что одобрен)."""
+
+    VOTING = "voting"
+    ELIMINATED_STAGE1 = "eliminated_stage1"
+    WINNER = "winner"
+    ELIMINATED_STAGE2 = "eliminated_stage2"

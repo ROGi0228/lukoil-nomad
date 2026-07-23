@@ -3,13 +3,13 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Date, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.models.base import Base, TimestampMixin
-from src.shared.enums import ApplicationStatus
+from src.shared.enums import ApplicationStatus, SelectionStage
 
 if TYPE_CHECKING:
     from src.db.models.user import User
@@ -58,5 +58,20 @@ class Application(Base, TimestampMixin):
     video_key: Mapped[str | None] = mapped_column(String(255))
     # присваивается при одобрении, формат "NOMAD_001" — см. applications.py:approve_application
     participant_number: Mapped[str | None] = mapped_column(String(20), unique=True)
+
+    # NULL — ещё не участвует ни в каком отборе (только что одобрен). Отдельно от
+    # status: голосование идёт поверх уже одобренных заявок, не часть пайплайна модерации.
+    selection_stage: Mapped[SelectionStage | None] = mapped_column(
+        SQLEnum(
+            SelectionStage,
+            native_enum=False,
+            validate_strings=True,
+            length=30,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+    )
+    # проставляется вручную в админ-панели — блогер проходит обычную регистрацию, но
+    # не обязан доходить до прав/видео, чтобы попасть в команду (Фаза 12)
+    is_blogger: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     user: Mapped[User] = relationship(back_populates="application")

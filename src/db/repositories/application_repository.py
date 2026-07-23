@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.application import Application
 from src.db.models.user import User
-from src.shared.enums import ApplicationStatus
+from src.shared.enums import ApplicationStatus, SelectionStage
 
 _ALMATY_TZ = ZoneInfo("Asia/Almaty")
 
@@ -61,6 +61,27 @@ async def list_incomplete_applicants(session: AsyncSession) -> list[tuple[int, s
         .where(Application.status.in_(_INCOMPLETE_STATUSES))
     )
     return list(result.tuples())
+
+
+async def list_stage1_candidates(session: AsyncSession) -> list[Application]:
+    """Одобренные заявки, ещё не участвующие ни в каком отборе — кандидаты на этап 1."""
+    result = await session.execute(
+        select(Application)
+        .where(Application.status == ApplicationStatus.APPROVED)
+        .where(Application.selection_stage.is_(None))
+        .order_by(Application.participant_number)
+    )
+    return list(result.scalars().all())
+
+
+async def list_stage2_candidates(session: AsyncSession) -> list[Application]:
+    """Прошедшие в голосование (этап 1) — кандидаты на финальную победу."""
+    result = await session.execute(
+        select(Application)
+        .where(Application.selection_stage == SelectionStage.VOTING)
+        .order_by(Application.participant_number)
+    )
+    return list(result.scalars().all())
 
 
 async def next_participant_number(session: AsyncSession) -> str:

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Отбор — Nomad Lukoil{% endblock %}
+
+{% block body %}
+<header class="topbar">
+    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
+    <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span class="whoami">{{ admin.username }}</span>
+        <button type="submit" class="link-button">Выйти</button>
+    </form>
+</header>
+
+<main class="content">
+    <a class="back-link" href="/">&larr; К списку заявок</a>
+
+    <h1>Отбор и голосование</h1>
+
+    <section class="detail-card" style="margin-bottom: 1.5rem;">
+        <h2>Этап 1 — кто проходит в голосование</h2>
+        <p class="muted">Отметьте одобренных участников, чьи видео-визитки прошли в голосование в канале. Остальные получат вежливый отказ.</p>
+
+        {% if stage1_candidates %}
+        <form method="post" action="/selection/stage1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="table-scroll">
+            <table class="applications-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Номер</th>
+                        <th>ФИО</th>
+                        <th>Город</th>
+                        <th>Телефон</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in stage1_candidates %}
+                    <tr>
+                        <td><input type="checkbox" name="selected_ids" value="{{ app.id }}"></td>
+                        <td>{{ app.participant_number or "—" }}</td>
+                        <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
+                        <td>{{ app.city }}</td>
+                        <td>{{ app.phone }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.75rem;">
+                Отправить выбранных в голосование
+            </button>
+        </form>
+        {% else %}
+        <p class="muted">Нет одобренных заявок, ожидающих отбора.</p>
+        {% endif %}
+    </section>
+
+    <section class="detail-card">
+        <h2>Этап 2 — выбор победителей</h2>
+        <p class="muted">Из тех, кто прошёл в голосование, отметьте финальных победителей — они отправятся в экспедицию. Остальные получат сообщение о вылете из конкурса.</p>
+
+        {% if stage2_candidates %}
+        <form method="post" action="/selection/stage2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="table-scroll">
+            <table class="applications-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Номер</th>
+                        <th>ФИО</th>
+                        <th>Город</th>
+                        <th>Телефон</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in stage2_candidates %}
+                    <tr>
+                        <td><input type="checkbox" name="selected_ids" value="{{ app.id }}"></td>
+                        <td>{{ app.participant_number or "—" }}</td>
+                        <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
+                        <td>{{ app.city }}</td>
+                        <td>{{ app.phone }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.75rem;">
+                Объявить победителей
+            </button>
+        </form>
+        {% else %}
+        <p class="muted">Пока никто не прошёл в голосование (этап 1).</p>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

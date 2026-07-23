@@ -19,6 +19,12 @@
     <p class="current-status">
         Статус:
         <span class="status-badge status-badge--{{ status_css_class(application.status) }}">{{ status_labels[application.status] }}</span>
+        {% if selection_stage_label(application.selection_stage) %}
+        <span class="status-badge status-badge--{{ selection_stage_css_class(application.selection_stage) }}">{{ selection_stage_label(application.selection_stage) }}</span>
+        {% endif %}
+        {% if application.is_blogger %}
+        <span class="status-badge status-badge--waiting">Блогер</span>
+        {% endif %}
     </p>
 
     {% if application.verification_flags %}
@@ -114,6 +120,13 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="text" name="reason" placeholder="Причина отказа" required>
             <button type="submit" class="action-button action-button--reject">Отклонить</button>
+        </form>
+
+        <form method="post" action="/applications/{{ application.id }}/toggle-blogger" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="action-button action-button--secondary">
+                {% if application.is_blogger %}Убрать отметку блогера{% else %}Отметить как блогера{% endif %}
+            </button>
         </form>
     </section>
 

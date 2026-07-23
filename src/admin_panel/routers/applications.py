@@ -13,6 +13,8 @@ from src.admin_panel.display import (
     STATUS_LABELS,
     flag_label,
     format_dt,
+    selection_stage_css_class,
+    selection_stage_label,
     status_css_class,
 )
 from src.bot.fsm_control import set_fsm_state
@@ -90,6 +92,8 @@ async def application_detail(
             "application": application,
             "status_labels": STATUS_LABELS,
             "status_css_class": status_css_class,
+            "selection_stage_label": selection_stage_label,
+            "selection_stage_css_class": selection_stage_css_class,
             "flag_label": flag_label,
             "photo_url": photo_url,
             "video_url": video_url,
@@ -292,6 +296,27 @@ async def request_video_again(
     bot: Bot = request.app.state.bot
     await set_fsm_state(bot, settings.redis_url, telegram_id, VideoStates.waiting_video)
     await notify_user(bot, telegram_id, t(lang, "request_video_again"))
+    return RedirectResponse(
+        f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/{application_id}/toggle-blogger", response_model=None)
+async def toggle_blogger(
+    application_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Отмечает/снимает отметку блогера — для добавления в команду (Фаза 12).
+    Блогер не обязан проходить проверку прав/видео, поэтому просто переключение
+    флага, без уведомлений и изменения FSM-состояния."""
+    async with async_session_factory() as session:
+        application = await get_application(session, application_id)
+        if application is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        application.is_blogger = not application.is_blogger
+        await session.commit()
+
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
     )

@@ -1,7 +1,7 @@
 import datetime as dt
 from zoneinfo import ZoneInfo
 
-from src.shared.enums import ApplicationStatus, ModerationAction
+from src.shared.enums import ApplicationStatus, ModerationAction, SelectionStage
 
 # Клиент в Казахстане (UTC+5, без перехода на летнее время) — все временные метки
 # в БД хранятся в UTC (timestamptz), в интерфейсе показываем сразу в местном времени.
@@ -43,6 +43,20 @@ FLAG_LABELS: dict[str, str] = {
     "ela_high_variance": "Признаки редактирования (ELA)",
 }
 
+SELECTION_STAGE_LABELS: dict[SelectionStage, str] = {
+    SelectionStage.VOTING: "В голосовании",
+    SelectionStage.ELIMINATED_STAGE1: "Не прошёл этап 1",
+    SelectionStage.WINNER: "Победитель",
+    SelectionStage.ELIMINATED_STAGE2: "Не прошёл финал",
+}
+
+SELECTION_STAGE_CSS_CLASS: dict[SelectionStage, str] = {
+    SelectionStage.VOTING: "waiting",
+    SelectionStage.ELIMINATED_STAGE1: "rejected",
+    SelectionStage.WINNER: "approved",
+    SelectionStage.ELIMINATED_STAGE2: "rejected",
+}
+
 ACTION_LABELS: dict[ModerationAction, str] = {
     ModerationAction.APPROVE: "Одобрено",
     ModerationAction.REJECT: "Отклонено",
@@ -58,6 +72,14 @@ def flag_label(flag: str) -> str:
 
 def status_css_class(status: ApplicationStatus) -> str:
     return STATUS_CSS_CLASS.get(status, "neutral")
+
+
+def selection_stage_label(stage: SelectionStage | None) -> str | None:
+    return SELECTION_STAGE_LABELS.get(stage) if stage else None
+
+
+def selection_stage_css_class(stage: SelectionStage | None) -> str:
+    return SELECTION_STAGE_CSS_CLASS.get(stage, "neutral") if stage else "neutral"
 
 
 def format_dt(value: dt.datetime) -> str:
