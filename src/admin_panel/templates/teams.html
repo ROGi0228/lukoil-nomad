@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Команды — Nomad Lukoil{% endblock %}
+
+{% block body %}
+<header class="topbar">
+    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
+    <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span class="whoami">{{ admin.username }}</span>
+        <button type="submit" class="link-button">Выйти</button>
+    </form>
+</header>
+
+<main class="content">
+    <a class="back-link" href="/">&larr; К списку заявок</a>
+    <a class="link-button" style="margin-left: 1rem;" href="/tasks">Задания и рейтинг →</a>
+
+    <h1>Команды</h1>
+
+    <section class="detail-card" style="margin-bottom: 1.5rem;">
+        <h2>Создать команду</h2>
+        <form method="post" action="/teams">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <p><input type="text" name="name" placeholder="Название команды" required></p>
+
+            <p><strong>Победители (до 3 человек):</strong></p>
+            {% for app in winners %}
+            <label style="display: block;">
+                <input type="checkbox" name="member_ids" value="{{ app.id }}">
+                {{ app.full_name }} ({{ app.participant_number or "—" }})
+            </label>
+            {% else %}
+            <p class="muted">Нет свободных победителей.</p>
+            {% endfor %}
+
+            <p><strong>Блогер (опционально):</strong></p>
+            {% for app in bloggers %}
+            <label style="display: block;">
+                <input type="checkbox" name="member_ids" value="{{ app.id }}">
+                {{ app.full_name }} (блогер)
+            </label>
+            {% else %}
+            <p class="muted">Нет свободных блогеров.</p>
+            {% endfor %}
+
+            <button type="submit" class="action-button action-button--approve" style="margin-top: 0.75rem;">Создать команду</button>
+        </form>
+    </section>
+
+    <section class="detail-card">
+        <h2>Все команды</h2>
+        {% if teams %}
+        <div class="table-scroll">
+        <table class="applications-table">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Состав</th>
+                    <th>Баллы</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in teams %}
+                <tr>
+                    <td>{{ team.name }}</td>
+                    <td>{% for m in team.members %}{{ m.full_name }}{% if m.is_blogger %} (блогер){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    <td>{{ scores[team.id] }}</td>
+                    <td><a href="/teams/{{ team.id }}">Открыть</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="muted">Команд пока нет.</p>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

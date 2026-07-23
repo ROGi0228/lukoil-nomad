@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }} — Nomad Lukoil{% endblock %}
+
+{% block body %}
+<header class="topbar">
+    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
+    <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span class="whoami">{{ admin.username }}</span>
+        <button type="submit" class="link-button">Выйти</button>
+    </form>
+</header>
+
+<main class="content">
+    <a class="back-link" href="/teams">&larr; К списку команд</a>
+
+    <h1>{{ team.name }}</h1>
+    <p class="current-status">Баллы: <strong>{{ score }}</strong></p>
+
+    <section class="detail-card" style="margin-bottom: 1.5rem;">
+        <h2>Состав</h2>
+        {% if team.members %}
+        <table class="applications-table">
+            <thead>
+                <tr><th>Участник</th><th>Роль</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for m in team.members %}
+                <tr>
+                    <td>{{ m.full_name }}</td>
+                    <td>{% if m.is_blogger %}Блогер{% else %}Участник{% endif %}</td>
+                    <td>
+                        <form method="post" action="/teams/{{ team.id }}/remove-member" class="inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="application_id" value="{{ m.id }}">
+                            <button type="submit" class="action-button action-button--secondary">Убрать</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">В команде пока никого нет.</p>
+        {% endif %}
+    </section>
+
+    <section class="detail-card">
+        <h2>Добавить участника</h2>
+        <form method="post" action="/teams/{{ team.id }}/add-member">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="application_id" required>
+                <option value="">— выбрать —</option>
+                {% for app in winners %}
+                <option value="{{ app.id }}">{{ app.full_name }} ({{ app.participant_number or "—" }})</option>
+                {% endfor %}
+                {% for app in bloggers %}
+                <option value="{{ app.id }}">{{ app.full_name }} (блогер)</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="action-button action-button--approve">Добавить</button>
+        </form>
+    </section>
+</main>
+{% endblock %}

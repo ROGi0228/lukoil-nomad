@@ -12,6 +12,7 @@ from src.db.models.base import Base, TimestampMixin
 from src.shared.enums import ApplicationStatus, SelectionStage
 
 if TYPE_CHECKING:
+    from src.db.models.team import Team
     from src.db.models.user import User
 
 
@@ -73,5 +74,9 @@ class Application(Base, TimestampMixin):
     # проставляется вручную в админ-панели — блогер проходит обычную регистрацию, но
     # не обязан доходить до прав/видео, чтобы попасть в команду (Фаза 12)
     is_blogger: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # команда (Фаза 12) — до 3 победителей + опционально 1 блогер на команду,
+    # это никак не проверяется на уровне БД, только в UI админ-панели при добавлении
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"))
 
     user: Mapped[User] = relationship(back_populates="application")
+    team: Mapped[Team | None] = relationship(back_populates="members")

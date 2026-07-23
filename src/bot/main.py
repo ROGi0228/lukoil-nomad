@@ -11,7 +11,7 @@ from arq import ArqRedis, create_pool
 from arq.connections import RedisSettings
 from redis.asyncio import Redis
 
-from src.bot.handlers import admin, document, registration, start, video
+from src.bot.handlers import admin, document, registration, start, tasks, video
 from src.bot.middlewares.db_session import DbSessionMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
@@ -43,6 +43,7 @@ def create_dispatcher(
     dispatcher.include_router(document.router)
     dispatcher.include_router(video.router)
     dispatcher.include_router(admin.router)
+    dispatcher.include_router(tasks.router)
     return dispatcher
 
 

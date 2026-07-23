@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Задания — Nomad Lukoil{% endblock %}
+
+{% block body %}
+<header class="topbar">
+    <span class="brand"><span class="brand__mark"></span>Nomad Lukoil <span class="brand__sep">·</span> админ-панель</span>
+    <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span class="whoami">{{ admin.username }}</span>
+        <button type="submit" class="link-button">Выйти</button>
+    </form>
+</header>
+
+<main class="content">
+    <a class="back-link" href="/teams">&larr; К командам</a>
+
+    <h1>Задания и рейтинг</h1>
+
+    <section class="detail-card" style="margin-bottom: 1.5rem;">
+        <h2>Рейтинг команд</h2>
+        {% if leaderboard %}
+        <table class="applications-table">
+            <thead><tr><th>#</th><th>Команда</th><th>Баллы</th></tr></thead>
+            <tbody>
+                {% for team in leaderboard %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><a href="/teams/{{ team.id }}">{{ team.name }}</a></td>
+                    <td>{{ scores[team.id] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">Пока нет ни одной команды.</p>
+        {% endif %}
+    </section>
+
+    <section class="detail-card" style="margin-bottom: 1.5rem;">
+        <h2>Новое задание</h2>
+        <form method="post" action="/tasks">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <p><input type="text" name="title" placeholder="Название задания" required style="width: 100%;"></p>
+            <p><textarea name="description" placeholder="Текст задания для команд" required style="width: 100%; min-height: 5rem;"></textarea></p>
+
+            <p>
+                <label>Дата отправки <input type="date" name="send_date" required></label>
+                <label>Время отправки <input type="time" name="send_time" value="09:00" required></label>
+            </p>
+
+            <p>
+                <label><input type="checkbox" name="is_daily" value="true"> Задание дня (дедлайн — конец суток отправки)</label>
+            </p>
+
+            <p>
+                <label>Дедлайн — дата <input type="date" name="deadline_date"></label>
+                <label>время <input type="time" name="deadline_time"></label>
+                <span class="muted">(не нужно, если отмечено «Задание дня»)</span>
+            </p>
+
+            <p>
+                <label>Штраф за просрочку, баллы <input type="number" name="penalty_points" value="2" min="0" style="width: 5rem;"></label>
+            </p>
+
+            <button type="submit" class="action-button action-button--approve">Создать и запланировать</button>
+        </form>
+    </section>
+
+    <section class="detail-card">
+        <h2>Все задания</h2>
+        {% if tasks %}
+        <div class="table-scroll">
+        <table class="applications-table">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Отправка</th>
+                    <th>Дедлайн</th>
+                    <th>Разослано</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <td>{{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}</td>
+                    <td>{{ task.send_at | format_dt }}</td>
+                    <td>{{ task.deadline_at | format_dt }}</td>
+                    <td>{% if task.dispatched %}Да{% else %}Ожидает{% endif %}</td>
+                    <td><a href="/tasks/{{ task.id }}">Детали</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="muted">Заданий пока нет.</p>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

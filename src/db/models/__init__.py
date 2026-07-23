@@ -8,6 +8,19 @@ from src.db.models.app_settings import AppSettings
 from src.db.models.application import Application
 from src.db.models.base import Base
 from src.db.models.moderation_log import ModerationLog
+from src.db.models.task import Task
+from src.db.models.task_dispatch import TaskDispatch
+from src.db.models.team import Team
 from src.db.models.user import User
 
-__all__ = ["AdminUser", "AppSettings", "Application", "Base", "ModerationLog", "User"]
+__all__ = [
+    "AdminUser",
+    "AppSettings",
+    "Application",
+    "Base",
+    "ModerationLog",
+    "Task",
+    "TaskDispatch",
+    "Team",
+    "User",
+]

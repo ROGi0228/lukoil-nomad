@@ -5,10 +5,12 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from arq.connections import RedisSettings
+from arq.cron import cron
 
 from src.core.config import get_settings
 from src.core.logging import configure_logging, get_logger
 from src.workers.tasks.ocr_tasks import process_document_ocr
+from src.workers.tasks.task_scheduler import apply_deadline_penalties, dispatch_due_tasks
 
 logger = get_logger(__name__)
 
@@ -43,6 +45,9 @@ configure_logging(settings)
 
 class WorkerSettings:
     functions: list[Any] = [health_check, process_document_ocr]
+    # Раз в минуту: разослать задания, у которых наступило время отправки, и
+    # оштрафовать команды, просрочившие дедлайн по уже отправленным заданиям.
+    cron_jobs: list[Any] = [cron(dispatch_due_tasks), cron(apply_deadline_penalties)]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
