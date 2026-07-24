@@ -29,7 +29,7 @@
     <div class="table-scroll">
     <table class="applications-table">
         <thead>
-            <tr><th>Команда</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th></tr>
+            <tr><th>Команда</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th><th>Сдача</th></tr>
         </thead>
         <tbody>
             {% for d in dispatches %}
@@ -43,6 +43,23 @@
                     {% endif %}
                 </td>
                 <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ d.points_awarded if d.points_awarded is not none else "—" }}</td>
+                <td>
+                    {% if d.submission_items %}
+                    <div class="submission-list">
+                        {% for item in d.submission_items %}
+                        {% if item.photo_key %}
+                        <a href="{{ submission_urls[item.id] }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("image", 13) }} Фото</a>
+                        {% elif item.video_key %}
+                        <a href="{{ submission_urls[item.id] }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("video", 13) }} Видео</a>
+                        {% elif item.text %}
+                        <span class="submission-chip submission-chip--text">{{ icons.svg("message-square", 13) }} {{ item.text }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span class="muted">—</span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

@@ -10,6 +10,7 @@ from src.db.models.base import Base
 from src.db.models.moderation_log import ModerationLog
 from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
+from src.db.models.task_submission_item import TaskSubmissionItem
 from src.db.models.team import Team
 from src.db.models.user import User
 
@@ -21,6 +22,7 @@ __all__ = [
     "ModerationLog",
     "Task",
     "TaskDispatch",
+    "TaskSubmissionItem",
     "Team",
     "User",
 ]

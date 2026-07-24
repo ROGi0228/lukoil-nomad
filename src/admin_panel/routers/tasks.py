@@ -9,6 +9,7 @@ from starlette import status
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import format_dt
+from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.task_repository import (
     create_task,
@@ -18,6 +19,7 @@ from src.db.repositories.task_repository import (
 )
 from src.db.repositories.team_repository import get_team_score, list_teams
 from src.db.session import async_session_factory
+from src.services.storage.s3_storage import S3Storage
 
 router = APIRouter(prefix="/tasks")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
@@ -122,12 +124,22 @@ async def create_task_route(
 async def task_detail(
     task_id: int, request: Request, admin: AdminUser = Depends(get_current_admin)
 ) -> HTMLResponse:
+    storage = S3Storage(get_settings())
+
     async with async_session_factory() as session:
         task = await get_task(session, task_id)
         if task is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         dispatches = await list_dispatches_for_task(session, task_id)
         teams = await list_teams(session)
+
+    submission_urls: dict[int, str] = {}
+    for dispatch in dispatches:
+        for item in dispatch.submission_items:
+            if item.photo_key:
+                submission_urls[item.id] = await storage.presigned_url(item.photo_key)
+            elif item.video_key:
+                submission_urls[item.id] = await storage.presigned_url(item.video_key)
 
     return templates.TemplateResponse(
         request,
@@ -138,5 +150,6 @@ async def task_detail(
             "task": task,
             "dispatches": dispatches,
             "total_teams": len(teams),
+            "submission_urls": submission_urls,
         },
     )

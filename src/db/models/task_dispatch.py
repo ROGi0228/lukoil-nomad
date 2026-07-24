@@ -10,6 +10,7 @@ from src.db.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.db.models.task import Task
+    from src.db.models.task_submission_item import TaskSubmissionItem
     from src.db.models.team import Team
 
 
@@ -34,3 +35,10 @@ class TaskDispatch(Base, TimestampMixin):
 
     task: Mapped[Task] = relationship()
     team: Mapped[Team] = relationship()
+    # Подтверждение сдачи — одно или несколько вложений (фото/видео/текст). Без этого
+    # "первый нажавший" ничего не значит: кнопка не требует реального выполнения
+    # задания, только клика. Рейтинг фиксируется по первому вложению, но команда может
+    # прислать ещё, пока не нажмёт «Готово» (см. src/bot/handlers/tasks.py).
+    submission_items: Mapped[list[TaskSubmissionItem]] = relationship(
+        back_populates="dispatch", order_by="TaskSubmissionItem.id"
+    )

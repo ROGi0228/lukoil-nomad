@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
+from src.db.models.task_submission_item import TaskSubmissionItem
 
 # 1-е/2-е/3-е место по скорости выполнения — индекс списка = (место - 1)
 COMPLETION_RANK_POINTS = (5, 3, 1)
@@ -136,7 +137,30 @@ async def list_dispatches_for_task(session: AsyncSession, task_id: int) -> list[
     result = await session.execute(
         select(TaskDispatch)
         .where(TaskDispatch.task_id == task_id)
-        .options(selectinload(TaskDispatch.team))
+        .options(selectinload(TaskDispatch.team), selectinload(TaskDispatch.submission_items))
         .order_by(TaskDispatch.completed_at.is_(None), TaskDispatch.completed_at)
     )
     return list(result.scalars().all())
+
+
+async def add_submission_item(
+    session: AsyncSession,
+    *,
+    dispatch_id: int,
+    photo_key: str | None = None,
+    video_key: str | None = None,
+    text: str | None = None,
+) -> TaskSubmissionItem:
+    item = TaskSubmissionItem(
+        dispatch_id=dispatch_id, photo_key=photo_key, video_key=video_key, text=text
+    )
+    session.add(item)
+    await session.flush()
+    return item
+
+
+async def count_submission_items(session: AsyncSession, dispatch_id: int) -> int:
+    result = await session.execute(
+        select(TaskSubmissionItem).where(TaskSubmissionItem.dispatch_id == dispatch_id)
+    )
+    return len(result.scalars().all())

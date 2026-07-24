@@ -1197,6 +1197,37 @@ h1, h2, h3 {
     display: block;
 }
 
+.submission-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-width: 260px;
+}
+
+.submission-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-full);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 0.78rem;
+    text-decoration: none;
+    width: fit-content;
+    max-width: 100%;
+}
+
+a.submission-chip:hover {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+}
+
+.submission-chip--text {
+    white-space: normal;
+    word-break: break-word;
+}
+
 .section-title {
     display: flex;
     align-items: center;
