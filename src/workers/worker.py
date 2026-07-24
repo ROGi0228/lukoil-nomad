@@ -14,6 +14,7 @@ from src.workers.tasks.task_scheduler import (
     apply_deadline_penalties,
     dispatch_due_tasks,
     dispatch_trigger_based_tasks,
+    send_deadline_reminders,
 )
 
 logger = get_logger(__name__)
@@ -50,11 +51,12 @@ configure_logging(settings)
 class WorkerSettings:
     functions: list[Any] = [health_check, process_document_ocr]
     # Раз в минуту: разослать задания, у которых наступило время отправки, отправить
-    # задания-триггеры командам, выполнившим предыдущее задание, и оштрафовать команды,
-    # просрочившие дедлайн по уже отправленным заданиям.
+    # задания-триггеры командам, выполнившим предыдущее задание, напомнить командам,
+    # ещё не сдавшим задание, что дедлайн скоро, и оштрафовать тех, кто его просрочил.
     cron_jobs: list[Any] = [
         cron(dispatch_due_tasks),
         cron(dispatch_trigger_based_tasks),
+        cron(send_deadline_reminders),
         cron(apply_deadline_penalties),
     ]
     on_startup = startup

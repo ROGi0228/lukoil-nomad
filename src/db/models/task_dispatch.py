@@ -32,6 +32,9 @@ class TaskDispatch(Base, TimestampMixin):
     # -penalty_points — просрочили дедлайн. NULL, пока не наступило ни то ни другое.
     points_awarded: Mapped[int | None] = mapped_column(Integer)
     penalty_applied: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Идемпотентность напоминания за REMINDER_MINUTES_BEFORE до дедлайна — чтобы cron не
+    # слал его повторно на каждом цикле, пока команда наконец не сдаст.
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     task: Mapped[Task] = relationship()
     team: Mapped[Team] = relationship()

@@ -104,6 +104,26 @@ async def list_dispatches_needing_penalty_check(
     return list(result.scalars().all())
 
 
+async def list_dispatches_needing_deadline_reminder(
+    session: AsyncSession, now: dt.datetime, minutes_before: int
+) -> list[TaskDispatch]:
+    """Ещё не сданные и не оштрафованные диспетчи, которым скоро (через
+    minutes_before минут или меньше) наступит дедлайн — и напоминание ещё не слали."""
+    threshold = now + dt.timedelta(minutes=minutes_before)
+    result = await session.execute(
+        select(TaskDispatch)
+        .join(Task, TaskDispatch.task_id == Task.id)
+        .where(TaskDispatch.completed_at.is_(None))
+        .where(TaskDispatch.penalty_applied.is_(False))
+        .where(TaskDispatch.reminder_sent.is_(False))
+        .where(Task.deadline_at.is_not(None))
+        .where(Task.deadline_at <= threshold)
+        .where(Task.deadline_at > now)
+        .options(selectinload(TaskDispatch.task))
+    )
+    return list(result.scalars().all())
+
+
 async def create_dispatch(
     session: AsyncSession, *, task_id: int, team_id: int, sent_at: dt.datetime
 ) -> TaskDispatch:

@@ -13,6 +13,7 @@ from src.db.repositories.task_repository import (
     create_dispatch,
     get_dispatch_for_team,
     list_completed_dispatches_for_task,
+    list_dispatches_needing_deadline_reminder,
     list_dispatches_needing_penalty_check,
     list_due_tasks_for_dispatch,
     list_trigger_based_tasks,
@@ -21,6 +22,9 @@ from src.db.repositories.team_repository import list_all_team_ids, list_team_mem
 from src.db.session import async_session_factory
 
 logger = get_logger(__name__)
+
+# За сколько минут до дедлайна напоминать команде, что задание ещё не сдано.
+REMINDER_MINUTES_BEFORE = 15
 
 
 async def _dispatch_to_team(
@@ -96,6 +100,34 @@ async def dispatch_trigger_based_tasks(ctx: dict[str, Any]) -> None:
                 if existing is not None:
                     continue
                 await _dispatch_to_team(session, bot, task, trigger_dispatch.team_id, now)
+        await session.commit()
+
+
+async def send_deadline_reminders(ctx: dict[str, Any]) -> None:
+    """Cron-джоб: напоминает командам, ещё не сдавшим задание, что дедлайн скоро —
+    за REMINDER_MINUTES_BEFORE минут. Раз на диспетч (reminder_sent — идемпотентность)."""
+    bot: Bot = ctx["bot"]
+    now = dt.datetime.now(dt.UTC)
+
+    async with async_session_factory() as session:
+        due = await list_dispatches_needing_deadline_reminder(session, now, REMINDER_MINUTES_BEFORE)
+        for dispatch in due:
+            task = dispatch.task
+            assert task.deadline_at is not None
+            dispatch.reminder_sent = True
+            contacts = await list_team_member_contacts(session, dispatch.team_id)
+            for telegram_id, language in contacts:
+                lang = resolve_lang(language)
+                text = t(
+                    lang,
+                    "task_deadline_reminder",
+                    title=task.title,
+                    minutes=REMINDER_MINUTES_BEFORE,
+                    deadline=task.deadline_at.astimezone(dt.timezone(dt.timedelta(hours=5))).strftime(
+                        "%d.%m.%Y %H:%M"
+                    ),
+                )
+                await notify_user(bot, telegram_id, text)
         await session.commit()
 
 
