@@ -10,9 +10,18 @@
 <a class="back-link" href="/tasks">{{ icons.svg("chevron-left", 15) }} К заданиям</a>
 
 <p class="current-status">
-    {{ icons.svg("clock", 14) }} Отправка: {{ task.send_at | format_dt }} &nbsp;·&nbsp; Дедлайн: {% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}без дедлайна{% endif %}
+    {{ icons.svg("clock", 14) }}
+    {% if task.trigger_task_id %}
+    Отправка: через {{ task.trigger_delay_minutes // 60 }}ч {{ task.trigger_delay_minutes % 60 }}м после «{{ task.trigger_task.title }}»
+    {% else %}
+    Отправка: {% if task.send_at %}{{ task.send_at | format_dt }}{% else %}—{% endif %}
+    {% endif %}
+    &nbsp;·&nbsp; Дедлайн: {% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}без дедлайна{% endif %}
     {% if task.is_daily %}<span class="status-badge status-badge--waiting">Задание дня</span>{% endif %}
 </p>
+{% if task.trigger_task_id %}
+<p class="total-count">{{ icons.svg("users", 13) }} Разослано {{ dispatches | length }} из {{ total_teams }} команд (по мере выполнения ими триггера)</p>
+{% endif %}
 
 <section class="detail-card">
     <h2 class="section-title">{{ icons.svg("clipboard-list", 17) }} Выполнение по командам</h2>

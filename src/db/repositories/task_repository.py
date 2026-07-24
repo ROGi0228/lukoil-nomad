@@ -16,10 +16,12 @@ async def create_task(
     *,
     title: str,
     description: str,
-    send_at: dt.datetime,
+    send_at: dt.datetime | None,
     deadline_at: dt.datetime | None,
     is_daily: bool,
     penalty_points: int,
+    trigger_task_id: int | None = None,
+    trigger_delay_minutes: int | None = None,
 ) -> Task:
     task = Task(
         title=title,
@@ -28,6 +30,8 @@ async def create_task(
         deadline_at=deadline_at,
         is_daily=is_daily,
         penalty_points=penalty_points,
+        trigger_task_id=trigger_task_id,
+        trigger_delay_minutes=trigger_delay_minutes,
     )
     session.add(task)
     await session.flush()
@@ -35,19 +39,54 @@ async def create_task(
 
 
 async def get_task(session: AsyncSession, task_id: int) -> Task | None:
-    return await session.get(Task, task_id)
+    return await session.get(Task, task_id, options=[selectinload(Task.trigger_task)])
 
 
 async def list_tasks(session: AsyncSession) -> list[Task]:
-    result = await session.execute(select(Task).order_by(Task.send_at.desc()))
+    result = await session.execute(
+        select(Task).options(selectinload(Task.trigger_task)).order_by(Task.id.desc())
+    )
     return list(result.scalars().all())
 
 
 async def list_due_tasks_for_dispatch(session: AsyncSession, now: dt.datetime) -> list[Task]:
+    """Задания с фиксированным временем отправки (без триггера), готовые к рассылке всем командам сразу."""
     result = await session.execute(
-        select(Task).where(Task.dispatched.is_(False)).where(Task.send_at <= now)
+        select(Task)
+        .where(Task.trigger_task_id.is_(None))
+        .where(Task.dispatched.is_(False))
+        .where(Task.send_at <= now)
     )
     return list(result.scalars().all())
+
+
+async def list_trigger_based_tasks(session: AsyncSession) -> list[Task]:
+    """Задания, которые отправляются команде через N минут после того, как ЭТА ЖЕ
+    команда выполнит другое (trigger_task_id) задание — не по общему расписанию."""
+    result = await session.execute(select(Task).where(Task.trigger_task_id.is_not(None)))
+    return list(result.scalars().all())
+
+
+async def list_completed_dispatches_for_task(
+    session: AsyncSession, task_id: int
+) -> list[TaskDispatch]:
+    result = await session.execute(
+        select(TaskDispatch)
+        .where(TaskDispatch.task_id == task_id)
+        .where(TaskDispatch.completed_at.is_not(None))
+    )
+    return list(result.scalars().all())
+
+
+async def get_dispatch_for_team(
+    session: AsyncSession, task_id: int, team_id: int
+) -> TaskDispatch | None:
+    result = await session.execute(
+        select(TaskDispatch)
+        .where(TaskDispatch.task_id == task_id)
+        .where(TaskDispatch.team_id == team_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_dispatches_needing_penalty_check(

@@ -35,7 +35,7 @@
 
     <section class="detail-card">
         <h2 class="section-title">{{ icons.svg("plus", 17) }} Новое задание</h2>
-        <form method="post" action="/tasks">
+        <form method="post" action="/tasks" class="task-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
             <div class="form-field">
@@ -48,23 +48,60 @@
                 <textarea id="task-description" name="description" placeholder="Что нужно сделать и как отчитаться" required></textarea>
             </div>
 
-            <div class="form-row">
-                <div class="form-field">
-                    <label for="send-date">Дата отправки</label>
-                    <input type="date" id="send-date" name="send_date" required>
+            <p class="field-group-label">Когда отправлять</p>
+            <div class="audience-picker">
+                <label class="radio-row">
+                    <input type="radio" name="schedule_mode" value="fixed" checked> {{ icons.svg("clock", 15) }} В заданное время
+                </label>
+                <label class="radio-row">
+                    <input type="radio" name="schedule_mode" value="trigger"> {{ icons.svg("send", 15) }} После другого задания
+                </label>
+            </div>
+
+            <div class="conditional-field conditional-field--fixed">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="send-date">Дата отправки</label>
+                        <input type="date" id="send-date" name="send_date">
+                    </div>
+                    <div class="form-field">
+                        <label for="send-time">Время отправки</label>
+                        <input type="time" id="send-time" name="send_time" value="09:00">
+                    </div>
                 </div>
+
+                <label class="checkbox-row" style="margin-bottom: 0.9rem;">
+                    <input type="checkbox" name="is_daily" value="true"> Задание дня (дедлайн — конец суток отправки)
+                </label>
+            </div>
+
+            <div class="conditional-field conditional-field--trigger">
                 <div class="form-field">
-                    <label for="send-time">Время отправки</label>
-                    <input type="time" id="send-time" name="send_time" value="09:00" required>
+                    <label for="trigger-task">Задание-триггер</label>
+                    <select id="trigger-task" name="trigger_task_id">
+                        <option value="">— выбрать задание —</option>
+                        {% for t in tasks %}
+                        <option value="{{ t.id }}">{{ t.title }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="trigger-hours">Через (часы)</label>
+                        <input type="number" id="trigger-hours" name="trigger_hours" value="0" min="0">
+                    </div>
+                    <div class="form-field">
+                        <label for="trigger-minutes">Через (минуты)</label>
+                        <input type="number" id="trigger-minutes" name="trigger_minutes" value="0" min="0" max="59">
+                    </div>
+                </div>
+                <p class="field-hint">Каждая команда получит это задание через указанное время после того, как САМА выполнит задание-триггер.</p>
             </div>
 
             <label class="checkbox-row">
                 <input type="checkbox" name="no_deadline" value="true"> Без дедлайна (штраф за просрочку не начисляется)
             </label>
-            <label class="checkbox-row" style="margin-bottom: 0.9rem;">
-                <input type="checkbox" name="is_daily" value="true"> Задание дня (дедлайн — конец суток отправки)
-            </label>
+            <p class="field-hint" style="margin-bottom: 0.9rem;">Для заданий «после другого задания» дедлайн, если не отмечено «Без дедлайна», нужно указывать датой ниже — иначе дедлайна не будет.</p>
 
             <div class="form-row">
                 <div class="form-field">
@@ -76,7 +113,7 @@
                     <input type="time" id="deadline-time" name="deadline_time">
                 </div>
             </div>
-            <p class="field-hint">Не нужно заполнять, если отмечено «Задание дня» или «Без дедлайна». Если отмечено и то, и другое — дедлайна не будет.</p>
+            <p class="field-hint">Не нужно заполнять, если отмечено «Задание дня» или «Без дедлайна».</p>
 
             <div class="form-field" style="max-width: 220px;">
                 <label for="penalty-points">Штраф за просрочку, баллы</label>
@@ -105,9 +142,25 @@
                 {% for task in tasks %}
                 <tr>
                     <td>{{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}</td>
-                    <td>{{ task.send_at | format_dt }}</td>
+                    <td>
+                        {% if task.trigger_task_id %}
+                        <span class="muted">После «{{ task.trigger_task.title }}» +{{ task.trigger_delay_minutes // 60 }}ч {{ task.trigger_delay_minutes % 60 }}м</span>
+                        {% elif task.send_at %}
+                        {{ task.send_at | format_dt }}
+                        {% else %}
+                        <span class="muted">—</span>
+                        {% endif %}
+                    </td>
                     <td>{% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}<span class="muted">Без дедлайна</span>{% endif %}</td>
-                    <td>{% if task.dispatched %}<span class="status-badge status-badge--approved">Да</span>{% else %}<span class="status-badge status-badge--waiting">Ожидает</span>{% endif %}</td>
+                    <td>
+                        {% if task.trigger_task_id %}
+                        <span class="status-badge status-badge--waiting">{{ dispatch_counts[task.id] }} / {{ total_teams }} команд</span>
+                        {% elif task.dispatched %}
+                        <span class="status-badge status-badge--approved">Да</span>
+                        {% else %}
+                        <span class="status-badge status-badge--waiting">Ожидает</span>
+                        {% endif %}
+                    </td>
                     <td><a href="/tasks/{{ task.id }}">Детали {{ icons.svg("chevron-right", 13) }}</a></td>
                 </tr>
                 {% endfor %}

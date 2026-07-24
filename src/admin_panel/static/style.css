@@ -1185,6 +1185,18 @@ h1, h2, h3 {
     display: block;
 }
 
+.task-form .conditional-field--fixed {
+    display: block;
+}
+
+.task-form:has(input[name="schedule_mode"][value="trigger"]:checked) .conditional-field--fixed {
+    display: none;
+}
+
+.task-form:has(input[name="schedule_mode"][value="trigger"]:checked) .conditional-field--trigger {
+    display: block;
+}
+
 .section-title {
     display: flex;
     align-items: center;

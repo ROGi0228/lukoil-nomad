@@ -2,15 +2,20 @@ import datetime as dt
 from typing import Any
 
 from aiogram import Bot
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.i18n import resolve_lang, t
 from src.bot.keyboards.tasks import task_dispatch_keyboard
 from src.bot.notify import notify_user
 from src.core.logging import get_logger
+from src.db.models.task import Task
 from src.db.repositories.task_repository import (
     create_dispatch,
+    get_dispatch_for_team,
+    list_completed_dispatches_for_task,
     list_dispatches_needing_penalty_check,
     list_due_tasks_for_dispatch,
+    list_trigger_based_tasks,
 )
 from src.db.repositories.team_repository import list_all_team_ids, list_team_member_contacts
 from src.db.session import async_session_factory
@@ -18,8 +23,42 @@ from src.db.session import async_session_factory
 logger = get_logger(__name__)
 
 
+async def _dispatch_to_team(
+    session: AsyncSession, bot: Bot, task: Task, team_id: int, sent_at: dt.datetime
+) -> None:
+    dispatch = await create_dispatch(session, task_id=task.id, team_id=team_id, sent_at=sent_at)
+    contacts = await list_team_member_contacts(session, team_id)
+    for telegram_id, language in contacts:
+        lang = resolve_lang(language)
+        if task.deadline_at is not None:
+            text = t(
+                lang,
+                "task_dispatched",
+                title=task.title,
+                description=task.description,
+                deadline=task.deadline_at.astimezone(dt.timezone(dt.timedelta(hours=5))).strftime(
+                    "%d.%m.%Y %H:%M"
+                ),
+            )
+        else:
+            text = t(
+                lang,
+                "task_dispatched_no_deadline",
+                title=task.title,
+                description=task.description,
+            )
+        try:
+            await bot.send_message(
+                telegram_id, text, reply_markup=task_dispatch_keyboard(lang, dispatch.id)
+            )
+        except Exception:
+            logger.exception(
+                "task_dispatch_notify_failed", telegram_id=telegram_id, task_id=task.id
+            )
+
+
 async def dispatch_due_tasks(ctx: dict[str, Any]) -> None:
-    """Cron-джоб: рассылает задания, у которых наступило время отправки, всем командам."""
+    """Cron-джоб: рассылает задания с фиксированным временем отправки всем командам сразу."""
     bot: Bot = ctx["bot"]
     now = dt.datetime.now(dt.UTC)
 
@@ -28,38 +67,35 @@ async def dispatch_due_tasks(ctx: dict[str, Any]) -> None:
         for task in due_tasks:
             team_ids = await list_all_team_ids(session)
             for team_id in team_ids:
-                dispatch = await create_dispatch(
-                    session, task_id=task.id, team_id=team_id, sent_at=now
-                )
-                contacts = await list_team_member_contacts(session, team_id)
-                for telegram_id, language in contacts:
-                    lang = resolve_lang(language)
-                    if task.deadline_at is not None:
-                        text = t(
-                            lang,
-                            "task_dispatched",
-                            title=task.title,
-                            description=task.description,
-                            deadline=task.deadline_at.astimezone(
-                                dt.timezone(dt.timedelta(hours=5))
-                            ).strftime("%d.%m.%Y %H:%M"),
-                        )
-                    else:
-                        text = t(
-                            lang,
-                            "task_dispatched_no_deadline",
-                            title=task.title,
-                            description=task.description,
-                        )
-                    try:
-                        await bot.send_message(
-                            telegram_id, text, reply_markup=task_dispatch_keyboard(lang, dispatch.id)
-                        )
-                    except Exception:
-                        logger.exception(
-                            "task_dispatch_notify_failed", telegram_id=telegram_id, task_id=task.id
-                        )
+                await _dispatch_to_team(session, bot, task, team_id, now)
             task.dispatched = True
+        await session.commit()
+
+
+async def dispatch_trigger_based_tasks(ctx: dict[str, Any]) -> None:
+    """Cron-джоб: задания-триггеры — команда получает задание через N минут после того,
+    как ЭТА ЖЕ команда выполнит другое задание. Раз на команду; идемпотентность —
+    уникальность (task_id, team_id) в TaskDispatch, проверяем перед созданием."""
+    bot: Bot = ctx["bot"]
+    now = dt.datetime.now(dt.UTC)
+
+    async with async_session_factory() as session:
+        trigger_tasks = await list_trigger_based_tasks(session)
+        for task in trigger_tasks:
+            if task.trigger_task_id is None or task.trigger_delay_minutes is None:
+                continue
+            completed = await list_completed_dispatches_for_task(session, task.trigger_task_id)
+            for trigger_dispatch in completed:
+                assert trigger_dispatch.completed_at is not None
+                ready_at = trigger_dispatch.completed_at + dt.timedelta(
+                    minutes=task.trigger_delay_minutes
+                )
+                if ready_at > now:
+                    continue
+                existing = await get_dispatch_for_team(session, task.id, trigger_dispatch.team_id)
+                if existing is not None:
+                    continue
+                await _dispatch_to_team(session, bot, task, trigger_dispatch.team_id, now)
         await session.commit()
 
 
