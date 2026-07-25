@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
+from src.db.models.task_dispatch_message import TaskDispatchMessage
 from src.db.models.task_submission_item import TaskSubmissionItem
 
 # 1-е/2-е/3-е место по скорости выполнения — индекс списка = (место - 1)
@@ -37,6 +38,32 @@ async def create_task(
     session.add(task)
     await session.flush()
     return task
+
+
+async def update_task(
+    task: Task,
+    *,
+    title: str,
+    description: str,
+    send_at: dt.datetime | None,
+    deadline_at: dt.datetime | None,
+    is_daily: bool,
+    penalty_points: int,
+    trigger_task_id: int | None,
+    trigger_delay_minutes: int | None,
+) -> None:
+    """Правит уже созданное задание — например, если админ ошибся в дате/дедлайне.
+    Уже отправленные сообщения при этом не меняются, только дальнейшее поведение
+    (напоминания/штраф считаются по новому дедлайну, будущие триггер-рассылки — по
+    новым trigger_task_id/trigger_delay_minutes)."""
+    task.title = title
+    task.description = description
+    task.send_at = send_at
+    task.deadline_at = deadline_at
+    task.is_daily = is_daily
+    task.penalty_points = penalty_points
+    task.trigger_task_id = trigger_task_id
+    task.trigger_delay_minutes = trigger_delay_minutes
 
 
 async def get_task(session: AsyncSession, task_id: int) -> Task | None:
@@ -184,3 +211,27 @@ async def count_submission_items(session: AsyncSession, dispatch_id: int) -> int
         select(TaskSubmissionItem).where(TaskSubmissionItem.dispatch_id == dispatch_id)
     )
     return len(result.scalars().all())
+
+
+async def add_dispatch_message(
+    session: AsyncSession, *, dispatch_id: int, telegram_id: int, message_id: int
+) -> TaskDispatchMessage:
+    record = TaskDispatchMessage(
+        dispatch_id=dispatch_id, telegram_id=telegram_id, message_id=message_id
+    )
+    session.add(record)
+    await session.flush()
+    return record
+
+
+async def list_dispatch_messages_for_task(
+    session: AsyncSession, task_id: int
+) -> list[TaskDispatchMessage]:
+    """Все сохранённые (chat_id, message_id) уведомлений о рассылке этого задания —
+    чтобы можно было отозвать их, если админ ошибся в данных задания."""
+    result = await session.execute(
+        select(TaskDispatchMessage)
+        .join(TaskDispatch, TaskDispatchMessage.dispatch_id == TaskDispatch.id)
+        .where(TaskDispatch.task_id == task_id)
+    )
+    return list(result.scalars().all())

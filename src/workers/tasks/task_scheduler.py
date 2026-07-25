@@ -10,6 +10,7 @@ from src.bot.notify import notify_user
 from src.core.logging import get_logger
 from src.db.models.task import Task
 from src.db.repositories.task_repository import (
+    add_dispatch_message,
     create_dispatch,
     get_dispatch_for_team,
     list_completed_dispatches_for_task,
@@ -52,8 +53,11 @@ async def _dispatch_to_team(
                 description=task.description,
             )
         try:
-            await bot.send_message(
+            sent = await bot.send_message(
                 telegram_id, text, reply_markup=task_dispatch_keyboard(lang, dispatch.id)
+            )
+            await add_dispatch_message(
+                session, dispatch_id=dispatch.id, telegram_id=telegram_id, message_id=sent.message_id
             )
         except Exception:
             logger.exception(

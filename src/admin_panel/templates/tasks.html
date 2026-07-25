@@ -161,7 +161,11 @@
                         <span class="status-badge status-badge--waiting">Ожидает</span>
                         {% endif %}
                     </td>
-                    <td><a href="/tasks/{{ task.id }}">Детали {{ icons.svg("chevron-right", 13) }}</a></td>
+                    <td>
+                        <a href="/tasks/{{ task.id }}">Детали {{ icons.svg("chevron-right", 13) }}</a>
+                        &nbsp;·&nbsp;
+                        <a href="/tasks/{{ task.id }}/edit">{{ icons.svg("pencil", 12) }} Изменить</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

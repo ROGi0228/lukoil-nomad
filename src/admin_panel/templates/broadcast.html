@@ -10,7 +10,11 @@
 {% if sent_count is not none %}
 <p class="flash-banner">{{ icons.svg("check", 16) }} Отправлено {{ sent_count }} участникам.</p>
 {% endif %}
+{% if deleted is not none %}
+<p class="flash-banner">{{ icons.svg("check", 16) }} Удалено сообщений: {{ deleted }} из {{ total }}.</p>
+{% endif %}
 
+<div class="stack">
 <form method="post" action="/broadcast" class="detail-card broadcast-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -66,4 +70,40 @@
         <button type="submit" name="action" value="send" class="action-button action-button--approve">{{ icons.svg("send", 15) }} Отправить</button>
     </div>
 </form>
+
+<section class="detail-card">
+    <h2 class="section-title">{{ icons.svg("clock", 17) }} История рассылок</h2>
+    {% if history %}
+    <div class="table-scroll">
+    <table class="applications-table">
+        <thead>
+            <tr><th>Когда</th><th>Кому</th><th>Текст</th><th>Получателей</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for b in history %}
+            <tr>
+                <td>{{ b.created_at | format_dt }}</td>
+                <td>{{ b.audience_label }}</td>
+                <td style="max-width: 320px; white-space: normal; word-break: break-word;">{{ b.message }}</td>
+                <td style="font-family: var(--font-mono);">{{ history_counts[b.id] }}</td>
+                <td>
+                    {% if history_counts[b.id] %}
+                    <form method="post" action="/broadcast/{{ b.id }}/delete" class="inline-form" onsubmit="return confirm('Удалить это сообщение у всех получателей ({{ history_counts[b.id] }})? Действие необратимо, и сработает только для сообщений младше 48 часов.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="action-button action-button--reject">{{ icons.svg("trash", 14) }} Удалить</button>
+                    </form>
+                    {% else %}
+                    <span class="muted">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">Рассылок пока не было.</p>
+    {% endif %}
+</section>
+</div>
 {% endblock %}

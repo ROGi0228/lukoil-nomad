@@ -5,9 +5,22 @@
 
 {% block page_title %}{{ task.title }}{% endblock %}
 {% block page_subtitle %}<p class="topbar__subtitle">{{ task.description }}</p>{% endblock %}
+{% block page_actions %}
+<a class="link-button" href="/tasks/{{ task.id }}/edit">{{ icons.svg("pencil", 15) }} Изменить</a>
+{% if message_count %}
+<form method="post" action="/tasks/{{ task.id }}/delete-messages" class="inline-form" onsubmit="return confirm('Удалить у всех получателей ({{ message_count }}) сообщение о рассылке этого задания? Действие необратимо.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="action-button action-button--reject">{{ icons.svg("trash", 15) }} Удалить рассылку ({{ message_count }})</button>
+</form>
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <a class="back-link" href="/tasks">{{ icons.svg("chevron-left", 15) }} К заданиям</a>
+
+{% if deleted is not none %}
+<p class="flash-banner">{{ icons.svg("check", 16) }} Удалено сообщений: {{ deleted }} из {{ total }}.</p>
+{% endif %}
 
 <p class="current-status">
     {{ icons.svg("clock", 14) }}
