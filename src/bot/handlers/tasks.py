@@ -13,6 +13,7 @@ from src.bot.keyboards.tasks import (
 )
 from src.bot.notify import notify_user
 from src.bot.states.task_states import TaskSubmissionStates
+from src.bot.utils.video_validators import MAX_FILE_SIZE_BYTES
 from src.core.logging import get_logger
 from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
@@ -151,24 +152,36 @@ async def on_task_submission(
         await message.answer(t(lang, "task_already_done"))
         return
 
+    if message.video is not None and (message.video.file_size or 0) > MAX_FILE_SIZE_BYTES:
+        # 20 МБ — предел скачивания файла через облачный Telegram Bot API (тот же
+        # лимит, что и для видео-визитки при регистрации). Возвращаемся без изменений
+        # состояния — можно прислать видео покороче/сжатое, фото или текст.
+        await message.answer(t(lang, "task_submission_file_too_big"))
+        return
+
     photo_key: str | None = None
     video_key: str | None = None
     text_answer: str | None = None
 
-    if message.photo:
-        file_id = message.photo[-1].file_id
-        buffer = await bot.download(file_id)
-        if buffer is not None:
-            photo_key = f"task_submissions/{dispatch.id}/{file_id}.jpg"
-            await storage.upload(photo_key, buffer.read(), content_type="image/jpeg")
-    elif message.video:
-        file_id = message.video.file_id
-        buffer = await bot.download(file_id)
-        if buffer is not None:
-            video_key = f"task_submissions/{dispatch.id}/{file_id}.mp4"
-            await storage.upload(video_key, buffer.read(), content_type="video/mp4")
-    elif message.text:
-        text_answer = message.text
+    try:
+        if message.photo:
+            file_id = message.photo[-1].file_id
+            buffer = await bot.download(file_id)
+            if buffer is not None:
+                photo_key = f"task_submissions/{dispatch.id}/{file_id}.jpg"
+                await storage.upload(photo_key, buffer.read(), content_type="image/jpeg")
+        elif message.video:
+            file_id = message.video.file_id
+            buffer = await bot.download(file_id)
+            if buffer is not None:
+                video_key = f"task_submissions/{dispatch.id}/{file_id}.mp4"
+                await storage.upload(video_key, buffer.read(), content_type="video/mp4")
+        elif message.text:
+            text_answer = message.text
+    except Exception:
+        logger.exception("task_submission_download_failed", dispatch_id=dispatch.id)
+        await message.answer(t(lang, "task_submission_download_failed"))
+        return
 
     await add_submission_item(
         db_session,
