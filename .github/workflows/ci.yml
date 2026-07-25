@@ -52,5 +52,8 @@ jobs:
             # admin-panel/bot/worker get a new container IP on every rebuild — Caddy
             # keeps old upstream connections in its pool and can 502 until it notices
             # they're dead, so force it to drop the pool and re-resolve right away.
+            # Give admin-panel a moment to finish starting up first, otherwise Caddy's
+            # restart can race it and hit a real (momentary) connection refused.
+            sleep 5
             docker compose -f docker-compose.yml -f docker-compose.prod.yml restart caddy
-            curl --fail --silent --show-error --retry 5 --retry-delay 3 https://lukoil.adverso.kz/health
+            curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors https://lukoil.adverso.kz/health
