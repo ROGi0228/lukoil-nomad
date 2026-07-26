@@ -31,7 +31,7 @@
                     <tr>
                         <td><input type="checkbox" name="selected_ids" value="{{ app.id }}"></td>
                         <td>{{ app.participant_number or "—" }}</td>
-                        <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
+                        <td><a href="/applications/{{ app.id }}" class="table-link">{{ app.full_name }}</a></td>
                         <td>{{ app.city }}</td>
                         <td>{{ app.phone }}</td>
                     </tr>
@@ -71,7 +71,7 @@
                     <tr>
                         <td><input type="checkbox" name="selected_ids" value="{{ app.id }}"></td>
                         <td>{{ app.participant_number or "—" }}</td>
-                        <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
+                        <td><a href="/applications/{{ app.id }}" class="table-link">{{ app.full_name }}</a></td>
                         <td>{{ app.city }}</td>
                         <td>{{ app.phone }}</td>
                     </tr>

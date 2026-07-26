@@ -47,7 +47,7 @@
         <tbody>
             {% for d in dispatches %}
             <tr>
-                <td><a href="/teams/{{ d.team_id }}">{{ d.team.name }}</a></td>
+                <td><a href="/teams/{{ d.team_id }}" class="table-link">{{ d.team.name }}</a></td>
                 <td>{{ d.sent_at | format_dt }}</td>
                 <td>
                     {% if d.completed_at %}{{ d.completed_at | format_dt }}

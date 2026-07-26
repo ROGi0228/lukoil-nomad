@@ -21,7 +21,7 @@
                 {% for team in leaderboard %}
                 <tr>
                     <td style="font-family: var(--font-mono);">{{ loop.index }}</td>
-                    <td><a href="/teams/{{ team.id }}">{{ team.name }}</a></td>
+                    <td><a href="/teams/{{ team.id }}" class="table-link">{{ team.name }}</a></td>
                     <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
                 </tr>
                 {% endfor %}
@@ -162,9 +162,10 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/tasks/{{ task.id }}">Детали {{ icons.svg("chevron-right", 13) }}</a>
-                        &nbsp;·&nbsp;
-                        <a href="/tasks/{{ task.id }}/edit">{{ icons.svg("pencil", 12) }} Изменить</a>
+                        <div class="table-actions">
+                            <a href="/tasks/{{ task.id }}" class="table-link">Детали {{ icons.svg("chevron-right", 13) }}</a>
+                            <a href="/tasks/{{ task.id }}/edit" class="table-link">{{ icons.svg("pencil", 12) }} Изменить</a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}

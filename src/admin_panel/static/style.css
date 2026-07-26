@@ -809,6 +809,30 @@ h1, h2, h3 {
     font-weight: 600;
 }
 
+/* Ссылка-действие внутри ячейки таблицы (не на всю строку) — «Детали», «Изменить»,
+   «Открыть» и т.п. Без явного класса такие ссылки получают браузерное подчёркивание
+   и синий цвет по умолчанию, что выбивается из остального дизайна. */
+.table-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--accent-text);
+    text-decoration: none;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.table-link:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.table-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
 /* ---------- Detail page ---------- */
 
 .current-status {
