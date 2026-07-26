@@ -10,7 +10,7 @@
 <a class="back-link" href="/tasks/{{ task.id }}">{{ icons.svg("chevron-left", 15) }} К заданию</a>
 
 <section class="detail-card">
-    <form method="post" action="/tasks/{{ task.id }}/edit" class="task-form">
+    <form method="post" action="/tasks/{{ task.id }}/edit" class="task-form" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
         <div class="form-field">
@@ -21,6 +21,26 @@
         <div class="form-field">
             <label for="task-description">Текст задания для команд</label>
             <textarea id="task-description" name="description" required>{{ task.description }}</textarea>
+        </div>
+
+        <div class="form-field">
+            <label for="task-attachment">Фото или видео к заданию (опционально)</label>
+            {% if attachment_url %}
+            <p class="section-intro" style="margin: 0 0 0.5rem;">
+                {% if task.attachment_photo_key %}
+                <a href="{{ attachment_url }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("image", 13) }} Текущее фото</a>
+                {% else %}
+                <a href="{{ attachment_url }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("video", 13) }} Текущее видео</a>
+                {% endif %}
+            </p>
+            {% endif %}
+            <input type="file" id="task-attachment" name="attachment" accept="image/*,video/*">
+            <p class="field-hint">Выберите новый файл, чтобы заменить текущий.</p>
+            {% if attachment_url %}
+            <label class="checkbox-row">
+                <input type="checkbox" name="remove_attachment" value="true"> Убрать вложение
+            </label>
+            {% endif %}
         </div>
 
         <p class="field-group-label">Когда отправлять</p>

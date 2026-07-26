@@ -66,6 +66,16 @@ async def update_task(
     task.trigger_delay_minutes = trigger_delay_minutes
 
 
+def set_task_attachment(
+    task: Task, *, photo_key: str | None = None, video_key: str | None = None
+) -> None:
+    """Прикрепляет/заменяет/убирает фото или видео задания. Вызывается отдельно от
+    create_task/update_task, так как для create ключ в S3 строится из task.id, а он
+    появляется только после первого flush."""
+    task.attachment_photo_key = photo_key
+    task.attachment_video_key = video_key
+
+
 async def get_task(session: AsyncSession, task_id: int) -> Task | None:
     return await session.get(Task, task_id, options=[selectinload(Task.trigger_task)])
 

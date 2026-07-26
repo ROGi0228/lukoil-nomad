@@ -36,6 +36,17 @@
 <p class="total-count">{{ icons.svg("users", 13) }} Разослано {{ dispatches | length }} из {{ total_teams }} команд (по мере выполнения ими триггера)</p>
 {% endif %}
 
+{% if attachment_url %}
+<section class="detail-card">
+    <h2 class="section-title">{% if task.attachment_photo_key %}{{ icons.svg("image", 17) }} Фото задания{% else %}{{ icons.svg("video", 17) }} Видео задания{% endif %}</h2>
+    {% if task.attachment_photo_key %}
+    <img class="document-photo" src="{{ attachment_url }}" alt="Вложение задания">
+    {% else %}
+    <video class="document-video" src="{{ attachment_url }}" controls></video>
+    {% endif %}
+</section>
+{% endif %}
+
 <section class="detail-card">
     <h2 class="section-title">{{ icons.svg("clipboard-list", 17) }} Выполнение по командам</h2>
     {% if dispatches %}

@@ -35,7 +35,7 @@
 
     <section class="detail-card">
         <h2 class="section-title">{{ icons.svg("plus", 17) }} Новое задание</h2>
-        <form method="post" action="/tasks" class="task-form">
+        <form method="post" action="/tasks" class="task-form" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
             <div class="form-field">
@@ -46,6 +46,12 @@
             <div class="form-field">
                 <label for="task-description">Текст задания для команд</label>
                 <textarea id="task-description" name="description" placeholder="Что нужно сделать и как отчитаться" required></textarea>
+            </div>
+
+            <div class="form-field">
+                <label for="task-attachment">Фото или видео к заданию (опционально)</label>
+                <input type="file" id="task-attachment" name="attachment" accept="image/*,video/*">
+                <p class="field-hint">Уйдёт вместе с текстом одним сообщением, вместо обычного текстового.</p>
             </div>
 
             <p class="field-group-label">Когда отправлять</p>

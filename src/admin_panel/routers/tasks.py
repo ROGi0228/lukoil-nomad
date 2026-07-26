@@ -2,7 +2,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette import status
@@ -19,6 +19,7 @@ from src.db.repositories.task_repository import (
     list_dispatch_messages_for_task,
     list_dispatches_for_task,
     list_tasks,
+    set_task_attachment,
     update_task,
 )
 from src.db.repositories.team_repository import get_team_score, list_teams
@@ -88,6 +89,30 @@ def _compute_schedule_and_deadline(
     return send_at, trigger_id, delay_minutes, deadline_at
 
 
+async def _save_attachment(
+    storage: S3Storage, task_id: int, attachment: UploadFile | None
+) -> tuple[str | None, str | None]:
+    """Загружает вложение задания в S3, если оно есть, и возвращает (photo_key,
+    video_key) — ровно одно из двух заполнено, по content_type файла. (None, None),
+    если вложения нет вовсе."""
+    if attachment is None or not attachment.filename:
+        return None, None
+
+    content_type = attachment.content_type or ""
+    data = await attachment.read()
+    if not data:
+        return None, None
+
+    if content_type.startswith("video/"):
+        key = f"task_attachments/{task_id}/{attachment.filename}"
+        await storage.upload(key, data, content_type=content_type)
+        return None, key
+
+    key = f"task_attachments/{task_id}/{attachment.filename}"
+    await storage.upload(key, data, content_type=content_type or "image/jpeg")
+    return key, None
+
+
 @router.get("", response_class=HTMLResponse)
 async def tasks_page(request: Request, admin: AdminUser = Depends(get_current_admin)) -> HTMLResponse:
     async with async_session_factory() as session:
@@ -130,6 +155,7 @@ async def create_task_route(
     deadline_date: str = Form(default=""),
     deadline_time: str = Form(default=""),
     penalty_points: int = Form(default=2),
+    attachment: UploadFile | None = File(default=None),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
@@ -146,8 +172,9 @@ async def create_task_route(
         deadline_time=deadline_time,
     )
 
+    storage = S3Storage(get_settings())
     async with async_session_factory() as session:
-        await create_task(
+        task = await create_task(
             session,
             title=title,
             description=description,
@@ -158,6 +185,10 @@ async def create_task_route(
             trigger_task_id=trigger_id,
             trigger_delay_minutes=delay_minutes,
         )
+        await session.flush()
+        photo_key, video_key = await _save_attachment(storage, task.id, attachment)
+        if photo_key or video_key:
+            set_task_attachment(task, photo_key=photo_key, video_key=video_key)
         await session.commit()
 
     return RedirectResponse("/tasks", status_code=status.HTTP_303_SEE_OTHER)
@@ -189,6 +220,12 @@ async def task_detail(
             elif item.video_key:
                 submission_urls[item.id] = await storage.presigned_url(item.video_key)
 
+    attachment_url = None
+    if task.attachment_photo_key:
+        attachment_url = await storage.presigned_url(task.attachment_photo_key)
+    elif task.attachment_video_key:
+        attachment_url = await storage.presigned_url(task.attachment_video_key)
+
     return templates.TemplateResponse(
         request,
         "task_detail.html",
@@ -199,6 +236,7 @@ async def task_detail(
             "dispatches": dispatches,
             "total_teams": len(teams),
             "submission_urls": submission_urls,
+            "attachment_url": attachment_url,
             "message_count": message_count,
             "deleted": deleted,
             "total": total,
@@ -246,6 +284,13 @@ async def edit_task_form(
     send_date_value, send_time_value = _to_almaty_parts(task.send_at)
     deadline_date_value, deadline_time_value = _to_almaty_parts(task.deadline_at)
 
+    attachment_url = None
+    storage = S3Storage(get_settings())
+    if task.attachment_photo_key:
+        attachment_url = await storage.presigned_url(task.attachment_photo_key)
+    elif task.attachment_video_key:
+        attachment_url = await storage.presigned_url(task.attachment_video_key)
+
     return templates.TemplateResponse(
         request,
         "task_edit.html",
@@ -260,6 +305,7 @@ async def edit_task_form(
             "deadline_time_value": deadline_time_value,
             "trigger_hours_value": (task.trigger_delay_minutes or 0) // 60,
             "trigger_minutes_value": (task.trigger_delay_minutes or 0) % 60,
+            "attachment_url": attachment_url,
         },
     )
 
@@ -280,6 +326,8 @@ async def edit_task_route(
     deadline_date: str = Form(default=""),
     deadline_time: str = Form(default=""),
     penalty_points: int = Form(default=2),
+    attachment: UploadFile | None = File(default=None),
+    remove_attachment: bool = Form(default=False),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
@@ -296,6 +344,7 @@ async def edit_task_route(
         deadline_time=deadline_time,
     )
 
+    storage = S3Storage(get_settings())
     async with async_session_factory() as session:
         task = await get_task(session, task_id)
         if task is None:
@@ -311,6 +360,13 @@ async def edit_task_route(
             trigger_task_id=trigger_id,
             trigger_delay_minutes=delay_minutes,
         )
+
+        photo_key, video_key = await _save_attachment(storage, task.id, attachment)
+        if photo_key or video_key:
+            set_task_attachment(task, photo_key=photo_key, video_key=video_key)
+        elif remove_attachment:
+            set_task_attachment(task, photo_key=None, video_key=None)
+
         await session.commit()
 
     return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)

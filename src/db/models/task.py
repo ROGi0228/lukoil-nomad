@@ -45,4 +45,10 @@ class Task(Base, TimestampMixin):
     dispatched: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     penalties_applied: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Фото или видео, приложенное к заданию в админке — уходит вместе с текстом при
+    # рассылке (bot.send_photo/send_video с текстом задания как caption вместо обычного
+    # send_message). Взаимоисключающие: приложить можно либо фото, либо видео.
+    attachment_photo_key: Mapped[str | None] = mapped_column(String(255))
+    attachment_video_key: Mapped[str | None] = mapped_column(String(255))
+
     trigger_task: Mapped[Task | None] = relationship(remote_side=[id])

@@ -1096,6 +1096,7 @@ h1, h2, h3 {
 .form-field input[type="date"],
 .form-field input[type="time"],
 .form-field input[type="number"],
+.form-field input[type="file"],
 .form-field textarea,
 .form-field select {
     width: 100%;
@@ -1107,6 +1108,23 @@ h1, h2, h3 {
     background: var(--bg);
     color: var(--text);
     transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.form-field input[type="file"]::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--secondary-bg);
+    color: var(--secondary-text);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.form-field input[type="file"]::file-selector-button:hover {
+    background: var(--secondary-bg-hover);
 }
 
 .form-field input:focus,

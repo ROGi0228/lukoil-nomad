@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.bot.i18n import resolve_lang, t
 from src.bot.keyboards.tasks import task_dispatch_keyboard
 from src.bot.notify import notify_user
+from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.db.models.task import Task
 from src.db.repositories.task_repository import (
@@ -21,6 +22,7 @@ from src.db.repositories.task_repository import (
 )
 from src.db.repositories.team_repository import list_all_team_ids, list_team_member_contacts
 from src.db.session import async_session_factory
+from src.services.storage.s3_storage import S3Storage
 
 logger = get_logger(__name__)
 
@@ -33,6 +35,14 @@ async def _dispatch_to_team(
 ) -> None:
     dispatch = await create_dispatch(session, task_id=task.id, team_id=team_id, sent_at=sent_at)
     contacts = await list_team_member_contacts(session, team_id)
+
+    attachment_url = None
+    if task.attachment_photo_key or task.attachment_video_key:
+        storage = S3Storage(get_settings())
+        key = task.attachment_photo_key or task.attachment_video_key
+        assert key is not None
+        attachment_url = await storage.presigned_url(key)
+
     for telegram_id, language in contacts:
         lang = resolve_lang(language)
         if task.deadline_at is not None:
@@ -53,9 +63,17 @@ async def _dispatch_to_team(
                 description=task.description,
             )
         try:
-            sent = await bot.send_message(
-                telegram_id, text, reply_markup=task_dispatch_keyboard(lang, dispatch.id)
-            )
+            keyboard = task_dispatch_keyboard(lang, dispatch.id)
+            if attachment_url is not None and task.attachment_photo_key:
+                sent = await bot.send_photo(
+                    telegram_id, photo=attachment_url, caption=text, reply_markup=keyboard
+                )
+            elif attachment_url is not None and task.attachment_video_key:
+                sent = await bot.send_video(
+                    telegram_id, video=attachment_url, caption=text, reply_markup=keyboard
+                )
+            else:
+                sent = await bot.send_message(telegram_id, text, reply_markup=keyboard)
             await add_dispatch_message(
                 session, dispatch_id=dispatch.id, telegram_id=telegram_id, message_id=sent.message_id
             )
