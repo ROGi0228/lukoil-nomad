@@ -42,17 +42,41 @@
 
     <section class="detail-card">
         <h2 class="section-title">{{ icons.svg("trophy", 17) }} Корректировка баллов</h2>
-        <p class="section-intro">Снять ошибочный штраф, начислить бонус и т.п. — не привязано к конкретному заданию, складывается с баллами за задания.</p>
-        <form method="post" action="/teams/{{ team.id }}/adjust-points" class="form-row" style="align-items: flex-end;">
+        <p class="section-intro">Снять ошибочный штраф, начислить бонус и т.п. — не привязано к конкретному заданию, складывается с баллами за задания. Баллы всегда идут на счёт команды — выбор ниже влияет только на то, кому придёт уведомление.</p>
+        <form method="post" action="/teams/{{ team.id }}/adjust-points" class="points-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-field" style="max-width: 140px;">
-                <label for="adjust-points">Баллы (± )</label>
-                <input type="number" id="adjust-points" name="points" placeholder="напр. 2 или -2" required>
+
+            <div class="form-row">
+                <div class="form-field" style="max-width: 140px;">
+                    <label for="adjust-points">Баллы (± )</label>
+                    <input type="number" id="adjust-points" name="points" placeholder="напр. 2 или -2" required>
+                </div>
+                <div class="form-field" style="flex: 1;">
+                    <label for="adjust-reason">Причина</label>
+                    <input type="text" id="adjust-reason" name="reason" placeholder="Например, снят штраф — дедлайн продлили" required>
+                </div>
             </div>
-            <div class="form-field" style="flex: 1;">
-                <label for="adjust-reason">Причина</label>
-                <input type="text" id="adjust-reason" name="reason" placeholder="Например, снят штраф — дедлайн продлили" required>
+
+            <p class="field-group-label">Уведомить</p>
+            <div class="audience-picker">
+                <label class="radio-row">
+                    <input type="radio" name="notify_scope" value="team" checked> {{ icons.svg("users", 15) }} Всю команду
+                </label>
+                <label class="radio-row">
+                    <input type="radio" name="notify_scope" value="participant"> {{ icons.svg("message-square", 15) }} Конкретного участника
+                </label>
             </div>
+
+            <div class="conditional-field conditional-field--participant form-field" style="max-width: 320px;">
+                <label for="adjust-participant">Участник</label>
+                <select id="adjust-participant" name="participant_id">
+                    <option value="">— выбрать —</option>
+                    {% for m in team.members %}
+                    <option value="{{ m.id }}">{{ m.full_name }}{% if m.is_blogger %} (блогер){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Применить</button>
         </form>
 

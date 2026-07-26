@@ -1185,6 +1185,10 @@ h1, h2, h3 {
     display: block;
 }
 
+.points-form:has(input[name="notify_scope"][value="participant"]:checked) .conditional-field--participant {
+    display: block;
+}
+
 .task-form .conditional-field--fixed {
     display: block;
 }

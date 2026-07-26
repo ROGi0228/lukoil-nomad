@@ -10,7 +10,7 @@ from src.admin_panel.display import format_dt
 from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
 from src.db.models.admin_user import AdminUser
-from src.db.repositories.application_repository import get_application
+from src.db.repositories.application_repository import get_application, get_application_contact
 from src.db.repositories.team_repository import (
     add_point_adjustment,
     create_team,
@@ -103,18 +103,25 @@ async def adjust_points_route(
     request: Request,
     points: int = Form(...),
     reason: str = Form(...),
+    notify_scope: str = Form(default="team"),
+    participant_id: str = Form(default=""),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     """Ручная корректировка баллов — снять ошибочный штраф, начислить бонус и т.п.,
-    независимо от конкретного задания. Уведомляет всех участников команды, как и
-    остальные командные события (задания, штрафы, напоминания)."""
+    независимо от конкретного задания. Баллы всегда идут на счёт команды — выбор
+    получателя уведомления (вся команда или один участник) на это не влияет."""
     async with async_session_factory() as session:
         await add_point_adjustment(
             session, team_id=team_id, points=points, reason=reason, admin_user_id=admin.id
         )
         await session.commit()
-        contacts = await list_team_member_contacts(session, team_id)
+
+        if notify_scope == "participant" and participant_id:
+            contact = await get_application_contact(session, int(participant_id))
+            contacts = [contact] if contact else []
+        else:
+            contacts = await list_team_member_contacts(session, team_id)
 
     points_text = f"+{points}" if points > 0 else str(points)
     bot: Bot = request.app.state.bot
