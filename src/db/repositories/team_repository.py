@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 from src.db.models.application import Application
 from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.team import Team
+from src.db.models.team_point_adjustment import TeamPointAdjustment
 from src.db.models.user import User
 from src.shared.enums import SelectionStage
 
@@ -68,9 +69,35 @@ async def list_all_team_ids(session: AsyncSession) -> list[int]:
 
 
 async def get_team_score(session: AsyncSession, team_id: int) -> int:
-    result = await session.execute(
+    dispatch_result = await session.execute(
         select(func.coalesce(func.sum(TaskDispatch.points_awarded), 0)).where(
             TaskDispatch.team_id == team_id
         )
     )
-    return result.scalar_one() or 0
+    adjustment_result = await session.execute(
+        select(func.coalesce(func.sum(TeamPointAdjustment.points), 0)).where(
+            TeamPointAdjustment.team_id == team_id
+        )
+    )
+    return (dispatch_result.scalar_one() or 0) + (adjustment_result.scalar_one() or 0)
+
+
+async def add_point_adjustment(
+    session: AsyncSession, *, team_id: int, points: int, reason: str, admin_user_id: int
+) -> TeamPointAdjustment:
+    adjustment = TeamPointAdjustment(
+        team_id=team_id, points=points, reason=reason, admin_user_id=admin_user_id
+    )
+    session.add(adjustment)
+    await session.flush()
+    return adjustment
+
+
+async def list_point_adjustments(session: AsyncSession, team_id: int) -> list[TeamPointAdjustment]:
+    result = await session.execute(
+        select(TeamPointAdjustment)
+        .where(TeamPointAdjustment.team_id == team_id)
+        .options(selectinload(TeamPointAdjustment.admin_user))
+        .order_by(TeamPointAdjustment.id.desc())
+    )
+    return list(result.scalars().all())

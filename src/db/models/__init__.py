@@ -14,6 +14,7 @@ from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.task_dispatch_message import TaskDispatchMessage
 from src.db.models.task_submission_item import TaskSubmissionItem
 from src.db.models.team import Team
+from src.db.models.team_point_adjustment import TeamPointAdjustment
 from src.db.models.user import User
 
 __all__ = [
@@ -29,5 +30,6 @@ __all__ = [
     "TaskDispatchMessage",
     "TaskSubmissionItem",
     "Team",
+    "TeamPointAdjustment",
     "User",
 ]

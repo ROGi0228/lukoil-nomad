@@ -5,20 +5,24 @@ from starlette import status
 
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
+from src.admin_panel.display import format_dt
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.application_repository import get_application
 from src.db.repositories.team_repository import (
+    add_point_adjustment,
     create_team,
     get_team,
     get_team_score,
     list_available_bloggers,
     list_available_winners,
+    list_point_adjustments,
     list_teams,
 )
 from src.db.session import async_session_factory
 
 router = APIRouter(prefix="/teams")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
+templates.env.filters["format_dt"] = format_dt
 
 
 @router.get("", response_class=HTMLResponse)
@@ -72,6 +76,7 @@ async def team_detail(
         score = await get_team_score(session, team_id)
         bloggers = await list_available_bloggers(session)
         winners = await list_available_winners(session)
+        adjustments = await list_point_adjustments(session, team_id)
 
     return templates.TemplateResponse(
         request,
@@ -83,8 +88,28 @@ async def team_detail(
             "score": score,
             "bloggers": bloggers,
             "winners": winners,
+            "adjustments": adjustments,
         },
     )
+
+
+@router.post("/{team_id}/adjust-points", response_model=None)
+async def adjust_points_route(
+    team_id: int,
+    points: int = Form(...),
+    reason: str = Form(...),
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Ручная корректировка баллов — снять ошибочный штраф, начислить бонус и т.п.,
+    независимо от конкретного задания."""
+    async with async_session_factory() as session:
+        await add_point_adjustment(
+            session, team_id=team_id, points=points, reason=reason, admin_user_id=admin.id
+        )
+        await session.commit()
+
+    return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/{team_id}/add-member", response_model=None)

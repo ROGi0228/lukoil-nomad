@@ -41,6 +41,41 @@
     </section>
 
     <section class="detail-card">
+        <h2 class="section-title">{{ icons.svg("trophy", 17) }} Корректировка баллов</h2>
+        <p class="section-intro">Снять ошибочный штраф, начислить бонус и т.п. — не привязано к конкретному заданию, складывается с баллами за задания.</p>
+        <form method="post" action="/teams/{{ team.id }}/adjust-points" class="form-row" style="align-items: flex-end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-field" style="max-width: 140px;">
+                <label for="adjust-points">Баллы (± )</label>
+                <input type="number" id="adjust-points" name="points" placeholder="напр. 2 или -2" required>
+            </div>
+            <div class="form-field" style="flex: 1;">
+                <label for="adjust-reason">Причина</label>
+                <input type="text" id="adjust-reason" name="reason" placeholder="Например, снят штраф — дедлайн продлили" required>
+            </div>
+            <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Применить</button>
+        </form>
+
+        {% if adjustments %}
+        <div class="table-scroll" style="margin-top: 1rem;">
+        <table class="applications-table">
+            <thead><tr><th>Когда</th><th>Кто</th><th>Баллы</th><th>Причина</th></tr></thead>
+            <tbody>
+                {% for a in adjustments %}
+                <tr>
+                    <td>{{ a.created_at | format_dt }}</td>
+                    <td>{{ a.admin_user.username }}</td>
+                    <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
+                    <td>{{ a.reason }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="detail-card">
         <h2 class="section-title">{{ icons.svg("plus", 17) }} Добавить участника</h2>
         <form method="post" action="/teams/{{ team.id }}/add-member" class="form-row" style="align-items: flex-end;">
             <div class="form-field" style="flex: 1;">
