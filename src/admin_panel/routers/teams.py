@@ -1,3 +1,4 @@
+from aiogram import Bot
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -6,6 +7,8 @@ from starlette import status
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import format_dt
+from src.bot.i18n import resolve_lang, t
+from src.bot.notify import notify_user
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.application_repository import get_application
 from src.db.repositories.team_repository import (
@@ -16,6 +19,7 @@ from src.db.repositories.team_repository import (
     list_available_bloggers,
     list_available_winners,
     list_point_adjustments,
+    list_team_member_contacts,
     list_teams,
 )
 from src.db.session import async_session_factory
@@ -96,18 +100,27 @@ async def team_detail(
 @router.post("/{team_id}/adjust-points", response_model=None)
 async def adjust_points_route(
     team_id: int,
+    request: Request,
     points: int = Form(...),
     reason: str = Form(...),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     """Ручная корректировка баллов — снять ошибочный штраф, начислить бонус и т.п.,
-    независимо от конкретного задания."""
+    независимо от конкретного задания. Уведомляет всех участников команды, как и
+    остальные командные события (задания, штрафы, напоминания)."""
     async with async_session_factory() as session:
         await add_point_adjustment(
             session, team_id=team_id, points=points, reason=reason, admin_user_id=admin.id
         )
         await session.commit()
+        contacts = await list_team_member_contacts(session, team_id)
+
+    points_text = f"+{points}" if points > 0 else str(points)
+    bot: Bot = request.app.state.bot
+    for telegram_id, language in contacts:
+        lang = resolve_lang(language)
+        await notify_user(bot, telegram_id, t(lang, "team_points_adjusted", points=points_text, reason=reason))
 
     return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
 
