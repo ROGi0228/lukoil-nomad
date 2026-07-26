@@ -62,9 +62,11 @@
                         {% for item in d.submission_items %}
                         {% if item.photo_key %}
                         <a href="{{ submission_urls[item.id] }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("image", 13) }} Фото</a>
-                        {% elif item.video_key %}
+                        {% endif %}
+                        {% if item.video_key %}
                         <a href="{{ submission_urls[item.id] }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("video", 13) }} Видео</a>
-                        {% elif item.text %}
+                        {% endif %}
+                        {% if item.text %}
                         <span class="submission-chip submission-chip--text">{{ icons.svg("message-square", 13) }} {{ item.text }}</span>
                         {% endif %}
                         {% endfor %}

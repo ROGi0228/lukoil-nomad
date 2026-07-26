@@ -170,12 +170,16 @@ async def on_task_submission(
             if buffer is not None:
                 photo_key = f"task_submissions/{dispatch.id}/{file_id}.jpg"
                 await storage.upload(photo_key, buffer.read(), content_type="image/jpeg")
+            # Подпись к фото/видео — тот же текст, что и отдельный текстовый ответ,
+            # просто пришедший в одном сообщении с вложением, а не отдельным.
+            text_answer = message.caption
         elif message.video:
             file_id = message.video.file_id
             buffer = await bot.download(file_id)
             if buffer is not None:
                 video_key = f"task_submissions/{dispatch.id}/{file_id}.mp4"
                 await storage.upload(video_key, buffer.read(), content_type="video/mp4")
+            text_answer = message.caption
         elif message.text:
             text_answer = message.text
     except Exception:
