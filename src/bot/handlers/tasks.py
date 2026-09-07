@@ -12,7 +12,7 @@ from src.bot.keyboards.tasks import (
     TASK_SUBMISSION_DONE_CALLBACK,
     task_submission_done_keyboard,
 )
-from src.bot.notify import notify_user
+from src.bot.notify import notify_user, try_delete_message
 from src.bot.states.task_states import TaskSubmissionStates
 from src.bot.utils.validators import MAX_FILE_SIZE_BYTES
 from src.core.logging import get_logger
@@ -46,44 +46,66 @@ ALBUM_ACK_DEBOUNCE_SECONDS = 1.5
 _pending_album_acks: dict[str, asyncio.Task[None]] = {}
 
 
-async def _send_submission_ack(bot: Bot, chat_id: int, lang: Lang, dispatch_id: int) -> None:
+async def _track_ack_message(state: FSMContext, message_id: int) -> None:
+    """Запоминает id сообщения-квитанции ("Принято... [Готово]"), чтобы удалить его
+    при нажатии «Готово» — иначе в чате копятся неактуальные кнопки (особенно
+    заметно, если вложения присланы несколькими отдельными сообщениями — у каждого
+    своя квитанция со своей кнопкой). Список, не одно значение — их может быть
+    несколько; в редком случае одновременной записи можно потерять один id
+    (не атомарно), тогда одно сообщение просто не удалится — не страшно, это чисто
+    косметическая уборка, а не начисление баллов."""
+    data = await state.get_data()
+    ack_ids: list[int] = list(data.get("ack_message_ids", []))
+    ack_ids.append(message_id)
+    await state.update_data(ack_message_ids=ack_ids)
+
+
+async def _send_submission_ack(bot: Bot, chat_id: int, lang: Lang, dispatch_id: int, state: FSMContext) -> None:
     async with async_session_factory() as session:
         count = await count_submission_items(session, dispatch_id)
-    await bot.send_message(
+    sent = await bot.send_message(
         chat_id,
         t(lang, "task_submission_item_added", count=count),
         reply_markup=task_submission_done_keyboard(lang),
     )
+    await _track_ack_message(state, sent.message_id)
 
 
 async def _debounced_album_ack(
-    bot: Bot, chat_id: int, lang: Lang, dispatch_id: int, media_group_id: str
+    bot: Bot, chat_id: int, lang: Lang, dispatch_id: int, media_group_id: str, state: FSMContext
 ) -> None:
     try:
         await asyncio.sleep(ALBUM_ACK_DEBOUNCE_SECONDS)
     except asyncio.CancelledError:
         return
     _pending_album_acks.pop(media_group_id, None)
-    await _send_submission_ack(bot, chat_id, lang, dispatch_id)
+    await _send_submission_ack(bot, chat_id, lang, dispatch_id, state)
 
 
-def _ack_submission(bot: Bot, message: Message, lang: Lang, dispatch_id: int) -> asyncio.Task[None] | None:
+def _ack_submission(
+    bot: Bot, message: Message, lang: Lang, dispatch_id: int, state: FSMContext
+) -> asyncio.Task[None] | None:
     """Одиночное фото/видео/текст — отвечаем сразу. Альбом (несколько сообщений с
     общим media_group_id, Telegram доставляет их отдельными апдейтами почти
     одновременно) — копим и отвечаем один раз итоговым количеством, а не одним
     сообщением на каждое фото."""
     group_id = message.media_group_id
     if group_id is None:
-        return asyncio.create_task(_send_submission_ack(bot, message.chat.id, lang, dispatch_id))
+        return asyncio.create_task(_send_submission_ack(bot, message.chat.id, lang, dispatch_id, state))
 
     existing = _pending_album_acks.get(group_id)
     if existing is not None and not existing.done():
         existing.cancel()
     task = asyncio.create_task(
-        _debounced_album_ack(bot, message.chat.id, lang, dispatch_id, group_id)
+        _debounced_album_ack(bot, message.chat.id, lang, dispatch_id, group_id, state)
     )
     _pending_album_acks[group_id] = task
     return task
+
+
+async def _cleanup_ack_messages(bot: Bot, chat_id: int, ack_message_ids: list[int]) -> None:
+    for message_id in ack_message_ids:
+        await try_delete_message(bot, chat_id, message_id)
 
 
 def _is_deadline_open(task: Task, now: dt.datetime) -> bool:
@@ -312,7 +334,7 @@ async def on_task_submission(
     )
     await db_session.commit()
 
-    _ack_submission(bot, message, lang, dispatch.id)
+    _ack_submission(bot, message, lang, dispatch.id, state)
 
 
 @router.callback_query(
@@ -334,9 +356,19 @@ async def on_task_submission_done(
 
     data = await state.get_data()
     dispatch_id = data.get("dispatch_id")
+    # Все квитанции ("Принято... [Готово]"), включая ту, что нажали именно сейчас —
+    # свою кнопку добавляем на всякий случай явно, чтобы гонка при записи в state
+    # (см. _track_ack_message) не оставила несведённой хотя бы её.
+    ack_message_ids: set[int] = set(data.get("ack_message_ids", []))
+    ack_message_ids.add(callback.message.message_id)
+    chat_id = callback.message.chat.id
     await state.clear()
     if dispatch_id is None:
         return
+
+    async def reply(text: str) -> None:
+        await _cleanup_ack_messages(bot, chat_id, list(ack_message_ids))
+        await bot.send_message(chat_id, text)
 
     dispatch = await get_dispatch(db_session, dispatch_id)
     task = await get_task(db_session, dispatch.task_id) if dispatch is not None else None
@@ -346,25 +378,25 @@ async def on_task_submission_done(
     count = await count_submission_items(db_session, dispatch.id)
     if count == 0:
         # Нажали «Готово», не прислав ни одного вложения — сдавать нечего.
-        await callback.message.answer(t(lang, "task_submission_nothing_to_finish"))
+        await reply(t(lang, "task_submission_nothing_to_finish"))
         return
 
     if dispatch.completed_at is not None:
-        await callback.message.answer(t(lang, "task_already_done"))
+        await reply(t(lang, "task_already_done"))
         return
 
     now = dt.datetime.now(dt.UTC)
     if dispatch.penalty_applied or not _is_deadline_open(task, now):
-        await callback.message.answer(t(lang, "task_deadline_passed"))
+        await reply(t(lang, "task_deadline_passed"))
         return
 
     won = await _finalize_completion(db_session, bot, dispatch, task, user.id, now)
     if won:
-        await callback.message.answer(t(lang, "task_submission_done", count=count))
+        await reply(t(lang, "task_submission_done", count=count))
     else:
         # Кто-то другой из команды успел нажать «Готово» одновременно с нами —
         # баллы уже начислены тем вызовом.
-        await callback.message.answer(t(lang, "task_already_done"))
+        await reply(t(lang, "task_already_done"))
 
 
 @router.message(TaskSubmissionStates.waiting_submission, _not_a_command)
