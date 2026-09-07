@@ -7,6 +7,18 @@
 {% block page_subtitle %}<p class="topbar__subtitle">{{ task.description }}</p>{% endblock %}
 {% block page_actions %}
 <a class="link-button" href="/tasks/{{ task.id }}/edit">{{ icons.svg("pencil", 15) }} Изменить</a>
+{% if not task.send_at and not task.trigger_task_id %}
+<form method="post" action="/tasks/{{ task.id }}/dispatch-now" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <select name="team_id" style="margin-right: 0.4rem;">
+        <option value="">Всем командам</option>
+        {% for team in teams %}
+        <option value="{{ team.id }}">{{ team.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="action-button action-button--approve">{{ icons.svg("send", 15) }} Отправить сейчас</button>
+</form>
+{% endif %}
 {% if message_count %}
 <form method="post" action="/tasks/{{ task.id }}/delete-messages" class="inline-form" onsubmit="return confirm('Удалить у всех получателей ({{ message_count }}) сообщение о рассылке этого задания? Действие необратимо.');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -31,6 +43,14 @@
     {% endif %}
     &nbsp;·&nbsp; Дедлайн: {% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}без дедлайна{% endif %}
     {% if task.is_daily %}<span class="status-badge status-badge--waiting">Задание дня</span>{% endif %}
+</p>
+<p class="current-status">
+    {{ icons.svg("trophy", 14) }}
+    {% if task.criterion.value == "pass_fail" %}Критерий: выполнил/не выполнил — {{ task.pass_points }} баллов
+    {% elif task.criterion.value == "speed_rank" %}Критерий: кто первым — {{ task.rank_points | join(" / ") }} баллов за 1/2/3 место
+    {% elif task.criterion.value == "global_mission" %}Критерий: глобальная миссия — без кнопки «Сдать», баллы координатор проставляет в конце
+    {% else %}Критерий: вручную — баллы проставляются координатором по каждой команде ниже
+    {% endif %}
 </p>
 {% if task.trigger_task_id %}
 <p class="total-count">{{ icons.svg("users", 13) }} Разослано {{ dispatches | length }} из {{ total_teams }} команд (по мере выполнения ими триггера)</p>
@@ -63,10 +83,24 @@
                 <td>
                     {% if d.completed_at %}{{ d.completed_at | format_dt }}
                     {% elif d.penalty_applied %}<span class="status-badge status-badge--rejected">Просрочено</span>
+                    {% elif task.criterion.value == "global_mission" %}<span class="status-badge status-badge--waiting">Оценивается в конце</span>
                     {% else %}<span class="status-badge status-badge--waiting">Ожидается</span>
                     {% endif %}
                 </td>
-                <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ d.points_awarded if d.points_awarded is not none else "—" }}</td>
+                <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">
+                    {% if task.criterion.value in ("manual", "global_mission") %}
+                    <form method="post" action="/tasks/{{ task.id }}/dispatch/{{ d.id }}/score" class="form-row" style="align-items: flex-end; flex-wrap: nowrap;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="number" name="points" value="{{ d.points_awarded if d.points_awarded is not none else 0 }}" style="width: 80px;">
+                        <label class="checkbox-row" style="margin: 0 0.4rem;">
+                            <input type="checkbox" name="notify" value="true" checked> Увед.
+                        </label>
+                        <button type="submit" class="action-button action-button--secondary">{{ icons.svg("check", 13) }}</button>
+                    </form>
+                    {% else %}
+                    {{ d.points_awarded if d.points_awarded is not none else "—" }}
+                    {% endif %}
+                </td>
                 <td>
                     {% if d.submission_items %}
                     <div class="submission-list">

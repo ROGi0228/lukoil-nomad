@@ -571,71 +571,6 @@ h1, h2, h3 {
     color: var(--accent-text);
 }
 
-/* ---------- KPI / status cards ---------- */
-
-.status-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-}
-
-.status-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.95rem 1.1rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    text-decoration: none;
-    color: var(--text);
-    box-shadow: var(--shadow-xs);
-    transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
-}
-
-.status-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-
-.status-card--active {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
-}
-
-.status-card__count {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: 1.6rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-}
-
-.status-card__label {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-.status-card__label::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--dot-color, var(--text-faint));
-    flex-shrink: 0;
-}
-
-.status-card--waiting .status-card__label { --dot-color: var(--warning); }
-.status-card--flagged .status-card__label { --dot-color: #c2410c; }
-.status-card--approved .status-card__label { --dot-color: var(--success-solid); }
-.status-card--rejected .status-card__label { --dot-color: var(--danger-solid); }
-.status-card--neutral .status-card__label { --dot-color: var(--text-faint); }
-
 /* ---------- Status badges ---------- */
 
 .status-badge {
@@ -658,15 +593,9 @@ h1, h2, h3 {
     flex-shrink: 0;
 }
 
-.status-badge--neutral { background: var(--neutral-bg); color: var(--neutral); }
 .status-badge--waiting { background: var(--warning-bg); color: var(--warning); }
-.status-badge--flagged { background: #fee4d6; color: #c2410c; }
 .status-badge--approved { background: var(--success-bg); color: var(--success); }
 .status-badge--rejected { background: var(--danger-bg); color: var(--danger); }
-
-@media (prefers-color-scheme: dark) {
-    .status-badge--flagged { background: #3d2717; color: #ff9d63; }
-}
 
 /* ---------- Filters ---------- */
 
@@ -844,29 +773,6 @@ h1, h2, h3 {
     gap: 0.5rem;
 }
 
-.flags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 1.25rem;
-}
-
-.flag-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    background: #ffe4d6;
-    color: #a53d0a;
-    border-radius: var(--radius-full);
-    padding: 0.3rem 0.75rem;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-
-@media (prefers-color-scheme: dark) {
-    .flag-badge { background: #3d2717; color: #ff9d63; }
-}
-
 .detail-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -925,28 +831,6 @@ h1, h2, h3 {
     max-width: 100%;
     border-radius: var(--radius-sm);
     background: #000;
-}
-
-.raw-ocr {
-    margin-bottom: 1.25rem;
-}
-
-.raw-ocr summary {
-    cursor: pointer;
-    color: var(--text-muted);
-    font-size: 0.88rem;
-    font-weight: 500;
-}
-
-.raw-ocr pre {
-    white-space: pre-wrap;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 0.85rem 1rem;
-    font-size: 0.82rem;
-    font-family: var(--font-mono);
-    color: var(--text);
 }
 
 .actions {
@@ -1072,10 +956,6 @@ h1, h2, h3 {
 
 .link-button:hover {
     background: var(--accent-soft);
-}
-
-.moderation-log h2 {
-    font-size: 0.95rem;
 }
 
 /* ---------- Forms (teams / tasks / broadcast) ---------- */
@@ -1240,6 +1120,34 @@ h1, h2, h3 {
 }
 
 .task-form:has(input[name="schedule_mode"][value="trigger"]:checked) .conditional-field--trigger {
+    display: block;
+}
+
+.task-form:has(input[name="schedule_mode"][value="manual"]:checked) .conditional-field--fixed {
+    display: none;
+}
+
+.task-form:has(input[name="schedule_mode"][value="manual"]:checked) .conditional-field--manual {
+    display: block;
+}
+
+.task-form .conditional-field--pass_fail {
+    display: block;
+}
+
+.task-form:has(input[name="criterion"][value="speed_rank"]:checked) .conditional-field--pass_fail {
+    display: none;
+}
+
+.task-form:has(input[name="criterion"][value="manual"]:checked) .conditional-field--pass_fail {
+    display: none;
+}
+
+.task-form:has(input[name="criterion"][value="global_mission"]:checked) .conditional-field--pass_fail {
+    display: none;
+}
+
+.task-form:has(input[name="criterion"][value="speed_rank"]:checked) .conditional-field--speed_rank {
     display: block;
 }
 

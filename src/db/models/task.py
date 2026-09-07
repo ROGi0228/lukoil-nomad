@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.models.base import Base, TimestampMixin
+from src.shared.enums import TaskCriterion
 
-DEFAULT_PENALTY_POINTS = 2
+# «Не выполнил» по новому ТЗ (Фаза 15) значит просто 0 баллов, не штраф — дефолт
+# оставлен настраиваемым (не убран совсем), чтобы админ мог включить штраф точечно.
+DEFAULT_PENALTY_POINTS = 0
+DEFAULT_PASS_POINTS = 5
+DEFAULT_RANK_POINTS = [30, 20, 10]
 
 
 class Task(Base, TimestampMixin):
@@ -16,6 +23,14 @@ class Task(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
+
+    # Необязательный короткий код "день.задание" (например "1.1", "2.3") — если
+    # задан, задание получает колонку в табличном /leaderboard: часть до первой
+    # точки группирует задания по дню экспедиции, часть после — подпись колонки
+    # для заданий текущего (последнего по номеру) дня; прошлые дни сворачиваются
+    # в одну колонку с суммой баллов за день. NULL — задание (например, глобальная
+    # миссия) не участвует в таблице по дням, только в общем счёте команды.
+    short_code: Mapped[str | None] = mapped_column(String(20))
 
     # когда воркер должен разослать задание всем командам разом. NULL — задание не на
     # фиксированное время, а по триггеру (см. trigger_task_id) — отправляется каждой
@@ -28,6 +43,31 @@ class Task(Base, TimestampMixin):
     # TaskDispatch — планировщик просто проверяет, есть ли уже диспетч, прежде чем создать.
     trigger_task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"))
     trigger_delay_minutes: Mapped[int | None] = mapped_column(Integer)
+
+    # Критерий №1/2/3 из ТЗ заказчика (см. PROJECT_PLAN.md, Фаза 15) — определяет,
+    # как считаются баллы за это задание. values_callable — та же причина, что и у
+    # остальных enum-колонок в проекте: хранить .value ("pass_fail"), а не .name.
+    criterion: Mapped[TaskCriterion] = mapped_column(
+        SQLEnum(
+            TaskCriterion,
+            native_enum=False,
+            validate_strings=True,
+            length=20,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        default=TaskCriterion.PASS_FAIL,
+        server_default=TaskCriterion.PASS_FAIL.value,
+    )
+    # criterion=PASS_FAIL — баллы за факт сдачи, вне зависимости от порядка
+    pass_points: Mapped[int] = mapped_column(
+        Integer, default=DEFAULT_PASS_POINTS, server_default=str(DEFAULT_PASS_POINTS)
+    )
+    # criterion=SPEED_RANK — баллы за 1/2/3-е место по скорости сдачи (индекс списка
+    # = место - 1), после списка — 0. criterion=MANUAL это поле не использует —
+    # баллы там проставляет админ вручную на TaskDispatch.points_awarded.
+    rank_points: Mapped[list[int]] = mapped_column(
+        JSONB, default=list(DEFAULT_RANK_POINTS), server_default=text("'[30, 20, 10]'::jsonb")
+    )
 
     # к какому моменту нужно уложиться — если не успели, штраф penalty_points.
     # Для "заданий дня" (is_daily=True) вычисляется как конец суток send_at админ-панелью

@@ -40,7 +40,7 @@ def configure_logging(settings: Settings) -> None:
     )
 
 
-_MASKED_KEYS = {"phone", "document_number", "phone_number"}
+_MASKED_KEYS = {"phone", "phone_number"}
 
 
 def _mask_pii(

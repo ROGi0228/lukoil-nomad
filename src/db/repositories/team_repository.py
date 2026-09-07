@@ -7,7 +7,6 @@ from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.team import Team
 from src.db.models.team_point_adjustment import TeamPointAdjustment
 from src.db.models.user import User
-from src.shared.enums import SelectionStage
 
 
 async def create_team(session: AsyncSession, name: str) -> Team:
@@ -27,28 +26,6 @@ async def get_team(session: AsyncSession, team_id: int) -> Team | None:
 async def list_teams(session: AsyncSession) -> list[Team]:
     result = await session.execute(
         select(Team).options(selectinload(Team.members)).order_by(Team.name)
-    )
-    return list(result.scalars().all())
-
-
-async def list_available_winners(session: AsyncSession) -> list[Application]:
-    """Победители (Фаза 11), ещё не состоящие ни в одной команде."""
-    result = await session.execute(
-        select(Application)
-        .where(Application.selection_stage == SelectionStage.WINNER)
-        .where(Application.team_id.is_(None))
-        .order_by(Application.participant_number)
-    )
-    return list(result.scalars().all())
-
-
-async def list_available_bloggers(session: AsyncSession) -> list[Application]:
-    """Отмеченные блогеры, ещё не состоящие ни в одной команде."""
-    result = await session.execute(
-        select(Application)
-        .where(Application.is_blogger.is_(True))
-        .where(Application.team_id.is_(None))
-        .order_by(Application.full_name)
     )
     return list(result.scalars().all())
 

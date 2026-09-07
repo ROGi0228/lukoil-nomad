@@ -9,4 +9,6 @@ pytest==8.3.4
 pytest-asyncio==0.25.0
 pytest-cov==6.0.0
 
-types-pillow
+# требуется starlette.testclient (TestClient), используемым test_csrf.py — не
+# рантайм-зависимость приложения, поэтому здесь, а не в base.txt
+httpx==0.28.1

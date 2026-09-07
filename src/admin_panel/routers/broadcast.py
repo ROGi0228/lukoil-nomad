@@ -14,8 +14,8 @@ from src.db.models.application import Application
 from src.db.models.team import Team
 from src.db.repositories.application_repository import (
     get_application_contact,
-    list_winners_and_bloggers,
-    list_winners_and_bloggers_contacts,
+    list_all_applications,
+    list_all_applications_contacts,
 )
 from src.db.repositories.broadcast_repository import (
     add_broadcast_message,
@@ -43,7 +43,7 @@ async def _resolve_contacts(
             return []
         contact = await get_application_contact(session, int(participant))
         return [contact] if contact else []
-    return await list_winners_and_bloggers_contacts(session)
+    return await list_all_applications_contacts(session)
 
 
 def _audience_label(
@@ -55,7 +55,7 @@ def _audience_label(
     if audience == "participant":
         matched_app = next((a for a in participants if str(a.id) == participant), None)
         return f"Участник: {matched_app.full_name}" if matched_app else "Участник (не выбран)"
-    return "Все победители и блогеры"
+    return "Все зарегистрированные участники"
 
 
 @router.get("", response_class=HTMLResponse)
@@ -68,7 +68,7 @@ async def broadcast_page(
 ) -> HTMLResponse:
     async with async_session_factory() as session:
         teams = await list_teams(session)
-        participants = await list_winners_and_bloggers(session)
+        participants = await list_all_applications(session)
         history = await list_broadcasts(session)
         history_counts = {b.id: len(await list_broadcast_messages(session, b.id)) for b in history}
 
@@ -105,7 +105,7 @@ async def broadcast_submit(
     async with async_session_factory() as session:
         contacts = await _resolve_contacts(session, audience, team, participant)
         teams = await list_teams(session)
-        participants = await list_winners_and_bloggers(session)
+        participants = await list_all_applications(session)
 
     if action == "send" and message.strip():
         bot: Bot = request.app.state.bot

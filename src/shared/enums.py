@@ -1,35 +1,21 @@
 import enum
 
 
-class ApplicationStatus(str, enum.Enum):
-    DRAFT = "draft"
-    PENDING_DOCUMENT = "pending_document"
-    PENDING_OCR = "pending_ocr"
-    DOCUMENT_FLAGGED = "document_flagged"
-    PENDING_VIDEO = "pending_video"
-    PENDING_MODERATION = "pending_moderation"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+class TaskCriterion(str, enum.Enum):
+    """Как считаются баллы за задание — см. PROJECT_PLAN.md, Фаза 15.
 
+    PASS_FAIL — «выполнил/не выполнил», Task.pass_points за факт сдачи.
+    SPEED_RANK — «кто первым», авто-баллы по порядку сдачи (Task.rank_points).
+    MANUAL — бот собирает вложения (доказательства) через кнопку «Сдать задание»,
+    баллы за диспетч команды проставляет админ вручную (голосование по лайкам,
+    секундомер координатора на месте и т.п.).
+    GLOBAL_MISSION — «глобальная миссия» (Критерий №3): рассылается один раз, БЕЗ
+    кнопки «Сдать задание» — чисто информационное напоминание на весь срок
+    экспедиции, с ежедневным повтором-напоминанием, пока не оценено. Баллы
+    проставляет админ вручную в конце (после дедлайна финального ивента).
+    """
 
-class ModerationAction(str, enum.Enum):
-    APPROVE = "approve"
-    REJECT = "reject"
-    REQUEST_REUPLOAD_PHOTO = "request_reupload_photo"
-    REQUEST_REUPLOAD_VIDEO = "request_reupload_video"
-    # Документ проверен модератором вручную (снят флаг DOCUMENT_FLAGGED) и участник
-    # переведён к загрузке видео — в отличие от REQUEST_REUPLOAD_VIDEO, видео при
-    # этом действии ещё ни разу не присылалось, это не повторный запрос.
-    APPROVE_DOCUMENT = "approve_document"
-    ADMIN_MESSAGE = "admin_message"
-
-
-class SelectionStage(str, enum.Enum):
-    """Стадия конкурсного отбора — независима от ApplicationStatus (тот про пайплайн
-    регистрации/модерации документов, этот — про голосование за уже одобренных).
-    NULL на Application означает "ещё не участвует ни в каком отборе" (только что одобрен)."""
-
-    VOTING = "voting"
-    ELIMINATED_STAGE1 = "eliminated_stage1"
-    WINNER = "winner"
-    ELIMINATED_STAGE2 = "eliminated_stage2"
+    PASS_FAIL = "pass_fail"
+    SPEED_RANK = "speed_rank"
+    MANUAL = "manual"
+    GLOBAL_MISSION = "global_mission"

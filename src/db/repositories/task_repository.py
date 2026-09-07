@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -8,9 +8,7 @@ from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.task_dispatch_message import TaskDispatchMessage
 from src.db.models.task_submission_item import TaskSubmissionItem
-
-# 1-е/2-е/3-е место по скорости выполнения — индекс списка = (место - 1)
-COMPLETION_RANK_POINTS = (5, 3, 1)
+from src.shared.enums import TaskCriterion
 
 
 async def create_task(
@@ -22,6 +20,10 @@ async def create_task(
     deadline_at: dt.datetime | None,
     is_daily: bool,
     penalty_points: int,
+    criterion: TaskCriterion,
+    pass_points: int,
+    rank_points: list[int],
+    short_code: str | None = None,
     trigger_task_id: int | None = None,
     trigger_delay_minutes: int | None = None,
 ) -> Task:
@@ -32,6 +34,10 @@ async def create_task(
         deadline_at=deadline_at,
         is_daily=is_daily,
         penalty_points=penalty_points,
+        criterion=criterion,
+        pass_points=pass_points,
+        rank_points=rank_points,
+        short_code=short_code,
         trigger_task_id=trigger_task_id,
         trigger_delay_minutes=trigger_delay_minutes,
     )
@@ -49,8 +55,12 @@ async def update_task(
     deadline_at: dt.datetime | None,
     is_daily: bool,
     penalty_points: int,
+    criterion: TaskCriterion,
+    pass_points: int,
+    rank_points: list[int],
     trigger_task_id: int | None,
     trigger_delay_minutes: int | None,
+    short_code: str | None = None,
 ) -> None:
     """Правит уже созданное задание — например, если админ ошибся в дате/дедлайне.
     Уже отправленные сообщения при этом не меняются, только дальнейшее поведение
@@ -62,8 +72,12 @@ async def update_task(
     task.deadline_at = deadline_at
     task.is_daily = is_daily
     task.penalty_points = penalty_points
+    task.criterion = criterion
+    task.pass_points = pass_points
+    task.rank_points = rank_points
     task.trigger_task_id = trigger_task_id
     task.trigger_delay_minutes = trigger_delay_minutes
+    task.short_code = short_code
 
 
 def set_task_attachment(
@@ -136,6 +150,9 @@ async def list_dispatches_needing_penalty_check(
         .where(TaskDispatch.completed_at.is_(None))
         .where(TaskDispatch.penalty_applied.is_(False))
         .where(Task.deadline_at <= now)
+        # Глобальные миссии не сдаются через бота вообще (нет кнопки) — их некому
+        # "просрочить" автоматически, баллы всегда проставляет админ вручную.
+        .where(Task.criterion != TaskCriterion.GLOBAL_MISSION)
         .options(selectinload(TaskDispatch.task))
     )
     return list(result.scalars().all())
@@ -174,6 +191,41 @@ async def get_dispatch(session: AsyncSession, dispatch_id: int) -> TaskDispatch 
     return await session.get(TaskDispatch, dispatch_id)
 
 
+async def claim_dispatch(
+    session: AsyncSession, *, dispatch_id: int, user_id: int, now: dt.datetime, points: int | None
+) -> bool:
+    """Атомарно (одним UPDATE ... WHERE completed_at IS NULL) помечает диспетч
+    выполненным — единственный источник истины о том, кто из команды сдал задание
+    первым. Без этого два участника одной команды, приславшие вложение почти
+    одновременно, оба прошли бы проверку "ещё не сдано" по устаревшему прочитанному
+    состоянию и получили бы баллы дважды. Возвращает True, если именно этот вызов
+    выиграл гонку (rowcount=1), False — если кто-то уже успел сдать первым."""
+    result = await session.execute(
+        update(TaskDispatch)
+        .where(TaskDispatch.id == dispatch_id, TaskDispatch.completed_at.is_(None))
+        .values(completed_at=now, completed_by_user_id=user_id, points_awarded=points)
+    )
+    return result.rowcount == 1
+
+
+async def claim_submission_slot(session: AsyncSession, *, dispatch_id: int, user_id: int) -> bool:
+    """Атомарно застолбливает право собирать вложения к сдаче за одним участником
+    команды — место/баллы решаются только по нажатию «Готово» (claim_dispatch), это
+    же поле лишь фиксирует, кто ведёт текущую сдачу, чтобы двое из команды не начали
+    параллельно и независимо прикреплять вложения к одному диспетчу. Возвращает True,
+    если именно этот вызов выиграл гонку за первое вложение."""
+    result = await session.execute(
+        update(TaskDispatch)
+        .where(
+            TaskDispatch.id == dispatch_id,
+            TaskDispatch.completed_by_user_id.is_(None),
+            TaskDispatch.completed_at.is_(None),
+        )
+        .values(completed_by_user_id=user_id)
+    )
+    return result.rowcount == 1
+
+
 async def count_completed_dispatches_for_task(session: AsyncSession, task_id: int) -> int:
     result = await session.execute(
         select(TaskDispatch)
@@ -183,11 +235,39 @@ async def count_completed_dispatches_for_task(session: AsyncSession, task_id: in
     return len(result.scalars().all())
 
 
-def points_for_completion_rank(rank_zero_based: int) -> int:
+def points_for_completion_rank(rank_zero_based: int, rank_points: list[int]) -> int:
     """rank_zero_based=0 — первая завершившая команда, 1 — вторая, и т.д."""
-    if rank_zero_based < len(COMPLETION_RANK_POINTS):
-        return COMPLETION_RANK_POINTS[rank_zero_based]
+    if rank_zero_based < len(rank_points):
+        return rank_points[rank_zero_based]
     return 0
+
+
+async def set_dispatch_points(session: AsyncSession, *, dispatch: TaskDispatch, points: int) -> None:
+    """criterion=MANUAL/GLOBAL_MISSION — админ проставляет баллы за диспетч вручную
+    (голосование по лайкам, секундомер координатора на месте, финальный зачёт
+    глобальных миссий и т.п.), а не автоматика по факту/порядку сдачи. Для
+    глобальных миссий это единственный момент, когда completed_at вообще
+    выставляется — сдачи через бота у них нет."""
+    if dispatch.completed_at is None:
+        dispatch.completed_at = dt.datetime.now(dt.UTC)
+    dispatch.points_awarded = points
+    await session.flush()
+
+
+async def list_active_global_mission_dispatches(
+    session: AsyncSession, now: dt.datetime
+) -> list[TaskDispatch]:
+    """Глобальные миссии (Критерий №3), ещё не оценённые админом и (если есть
+    дедлайн) не просроченные — для ежедневного напоминания командам."""
+    result = await session.execute(
+        select(TaskDispatch)
+        .join(Task, TaskDispatch.task_id == Task.id)
+        .where(Task.criterion == TaskCriterion.GLOBAL_MISSION)
+        .where(TaskDispatch.points_awarded.is_(None))
+        .where(or_(Task.deadline_at.is_(None), Task.deadline_at > now))
+        .options(selectinload(TaskDispatch.task))
+    )
+    return list(result.scalars().all())
 
 
 async def list_dispatches_for_task(session: AsyncSession, task_id: int) -> list[TaskDispatch]:
@@ -196,6 +276,30 @@ async def list_dispatches_for_task(session: AsyncSession, task_id: int) -> list[
         .where(TaskDispatch.task_id == task_id)
         .options(selectinload(TaskDispatch.team), selectinload(TaskDispatch.submission_items))
         .order_by(TaskDispatch.completed_at.is_(None), TaskDispatch.completed_at)
+    )
+    return list(result.scalars().all())
+
+
+async def list_dispatches_with_short_code(session: AsyncSession) -> list[TaskDispatch]:
+    """Все диспетчи заданий с заполненным short_code, по всем командам разом — сырьё
+    для таблицы /leaderboard (см. src/bot/leaderboard_table.py): одна выборка вместо
+    запроса на каждую команду, колонки таблицы общие для всех строк."""
+    result = await session.execute(
+        select(TaskDispatch)
+        .join(Task, TaskDispatch.task_id == Task.id)
+        .where(Task.short_code.is_not(None))
+        .options(selectinload(TaskDispatch.task))
+    )
+    return list(result.scalars().all())
+
+
+async def list_dispatches_for_team(session: AsyncSession, team_id: int) -> list[TaskDispatch]:
+    """Все задания, полученные этой командой — для команды бота «Мои задания»."""
+    result = await session.execute(
+        select(TaskDispatch)
+        .where(TaskDispatch.team_id == team_id)
+        .options(selectinload(TaskDispatch.task))
+        .order_by(TaskDispatch.sent_at.desc())
     )
     return list(result.scalars().all())
 

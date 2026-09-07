@@ -7,11 +7,9 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
-from arq import ArqRedis, create_pool
-from arq.connections import RedisSettings
 from redis.asyncio import Redis
 
-from src.bot.handlers import admin, document, registration, start, tasks, video
+from src.bot.handlers import admin, registration, start, tasks, team_info
 from src.bot.middlewares.db_session import DbSessionMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
@@ -26,13 +24,10 @@ WEBHOOK_PATH = "/webhook"
 WEBHOOK_SERVER_PORT = 8080
 
 
-def create_dispatcher(
-    settings: Settings, redis: Redis, storage: S3Storage, arq_pool: ArqRedis
-) -> Dispatcher:
+def create_dispatcher(settings: Settings, redis: Redis, storage: S3Storage) -> Dispatcher:
     dispatcher = Dispatcher(storage=RedisStorage(redis=redis))
     dispatcher["settings"] = settings
     dispatcher["storage"] = storage
-    dispatcher["arq_pool"] = arq_pool
 
     dispatcher.update.middleware(LoggingMiddleware())
     dispatcher.update.middleware(ThrottlingMiddleware(redis=redis))
@@ -40,22 +35,25 @@ def create_dispatcher(
 
     dispatcher.include_router(start.router)
     dispatcher.include_router(registration.router)
-    dispatcher.include_router(document.router)
-    dispatcher.include_router(video.router)
     dispatcher.include_router(admin.router)
     dispatcher.include_router(tasks.router)
+    dispatcher.include_router(team_info.router)
     return dispatcher
 
 
 _USER_COMMANDS = {
     "ru": [
         BotCommand(command="start", description="О проекте / регистрация"),
-        BotCommand(command="status", description="Статус моей заявки"),
+        BotCommand(command="tasks", description="Задания моей команды"),
+        BotCommand(command="points", description="Баллы моей команды"),
+        BotCommand(command="leaderboard", description="Рейтинг команд"),
         BotCommand(command="language", description="Сменить язык"),
     ],
     "kk": [
         BotCommand(command="start", description="Жоба туралы / тіркелу"),
-        BotCommand(command="status", description="Өтінішімнің мәртебесі"),
+        BotCommand(command="tasks", description="Командамның тапсырмалары"),
+        BotCommand(command="points", description="Командамның ұпайлары"),
+        BotCommand(command="leaderboard", description="Командалар рейтингі"),
         BotCommand(command="language", description="Тілді өзгерту"),
     ],
 }
@@ -117,8 +115,7 @@ async def main() -> None:
     redis: Redis = Redis.from_url(settings.redis_url)
     storage = S3Storage(settings)
     await storage.ensure_bucket_exists()
-    arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-    dispatcher = create_dispatcher(settings, redis, storage, arq_pool)
+    dispatcher = create_dispatcher(settings, redis, storage)
 
     await _setup_bot_commands(bot, settings)
 
@@ -136,7 +133,6 @@ async def main() -> None:
         else:
             await _run_polling(bot, dispatcher)
     finally:
-        await arq_pool.close()
         await redis.aclose()
         await bot.session.close()
 

@@ -10,21 +10,32 @@ from starlette import status
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import format_dt
-from src.bot.notify import try_delete_message
+from src.bot.i18n import resolve_lang, t
+from src.bot.notify import notify_user, try_delete_message
 from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.task_repository import (
     create_task,
+    get_dispatch,
+    get_dispatch_for_team,
     get_task,
     list_dispatch_messages_for_task,
     list_dispatches_for_task,
     list_tasks,
+    set_dispatch_points,
     set_task_attachment,
     update_task,
 )
-from src.db.repositories.team_repository import get_team_score, list_teams
+from src.db.repositories.team_repository import (
+    get_team_score,
+    list_all_team_ids,
+    list_team_member_contacts,
+    list_teams,
+)
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
+from src.shared.enums import TaskCriterion
+from src.workers.tasks.task_scheduler import dispatch_to_team
 
 router = APIRouter(prefix="/tasks")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
@@ -69,6 +80,12 @@ def _compute_schedule_and_deadline(
         send_at = None
         trigger_id = int(trigger_task_id)
         delay_minutes = trigger_hours * 60 + trigger_minutes
+    elif schedule_mode == "manual":
+        # Форс-мажорное/wildcard-задание — не уходит по крону (нет ни send_at, ни
+        # trigger_task_id), координатор запускает его вручную кнопкой «Отправить сейчас».
+        send_at = None
+        trigger_id = None
+        delay_minutes = None
     else:
         send_at = _to_utc(send_date, send_time)
         trigger_id = None
@@ -87,6 +104,12 @@ def _compute_schedule_and_deadline(
         deadline_at = None
 
     return send_at, trigger_id, delay_minutes, deadline_at
+
+
+def _parse_criterion(
+    criterion: str, pass_points: int, rank_points_1: int, rank_points_2: int, rank_points_3: int
+) -> tuple[TaskCriterion, int, list[int]]:
+    return TaskCriterion(criterion), pass_points, [rank_points_1, rank_points_2, rank_points_3]
 
 
 async def _save_attachment(
@@ -154,7 +177,13 @@ async def create_task_route(
     no_deadline: bool = Form(default=False),
     deadline_date: str = Form(default=""),
     deadline_time: str = Form(default=""),
-    penalty_points: int = Form(default=2),
+    penalty_points: int = Form(default=0),
+    criterion: str = Form(default="pass_fail"),
+    pass_points: int = Form(default=5),
+    rank_points_1: int = Form(default=30),
+    rank_points_2: int = Form(default=20),
+    rank_points_3: int = Form(default=10),
+    short_code: str = Form(default=""),
     attachment: UploadFile | None = File(default=None),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
@@ -171,6 +200,9 @@ async def create_task_route(
         deadline_date=deadline_date,
         deadline_time=deadline_time,
     )
+    criterion_value, pass_points_value, rank_points_value = _parse_criterion(
+        criterion, pass_points, rank_points_1, rank_points_2, rank_points_3
+    )
 
     storage = S3Storage(get_settings())
     async with async_session_factory() as session:
@@ -182,6 +214,10 @@ async def create_task_route(
             deadline_at=deadline_at,
             is_daily=is_daily,
             penalty_points=penalty_points,
+            criterion=criterion_value,
+            pass_points=pass_points_value,
+            rank_points=rank_points_value,
+            short_code=short_code.strip() or None,
             trigger_task_id=trigger_id,
             trigger_delay_minutes=delay_minutes,
         )
@@ -234,6 +270,7 @@ async def task_detail(
             "csrf_token": get_csrf_token(request),
             "task": task,
             "dispatches": dispatches,
+            "teams": teams,
             "total_teams": len(teams),
             "submission_urls": submission_urls,
             "attachment_url": attachment_url,
@@ -269,6 +306,68 @@ async def delete_task_messages(
         f"/tasks/{task_id}?deleted={deleted_count}&total={total_count}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
+
+
+@router.post("/{task_id}/dispatch/{dispatch_id}/score", response_model=None)
+async def score_dispatch(
+    task_id: int,
+    dispatch_id: int,
+    request: Request,
+    points: int = Form(...),
+    notify: bool = Form(default=False),
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """criterion=MANUAL — админ проставляет баллы за диспетч вручную (голосование по
+    лайкам, секундомер координатора на месте, финальный зачёт глобальных миссий)."""
+    async with async_session_factory() as session:
+        dispatch = await get_dispatch(session, dispatch_id)
+        task = await get_task(session, task_id)
+        if dispatch is None or task is None or dispatch.task_id != task_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        await set_dispatch_points(session, dispatch=dispatch, points=points)
+        await session.commit()
+        team_id = dispatch.team_id
+        contacts = await list_team_member_contacts(session, team_id) if notify else []
+
+    if notify:
+        bot: Bot = request.app.state.bot
+        for telegram_id, language in contacts:
+            lang = resolve_lang(language)
+            await notify_user(
+                bot, telegram_id, t(lang, "team_task_score_set", title=task.title, points=points)
+            )
+
+    return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/{task_id}/dispatch-now", response_model=None)
+async def dispatch_now(
+    task_id: int,
+    request: Request,
+    team_id: str = Form(default=""),
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Ручной/wildcard-запуск (Фаза 16) — только для заданий без send_at и без
+    trigger_task_id, которые иначе никогда не уйдут по крону."""
+    bot: Bot = request.app.state.bot
+    now = dt.datetime.now(dt.UTC)
+    async with async_session_factory() as session:
+        task = await get_task(session, task_id)
+        if task is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        if task.send_at is not None or task.trigger_task_id is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+        target_team_ids = [int(team_id)] if team_id else await list_all_team_ids(session)
+        for target_id in target_team_ids:
+            if await get_dispatch_for_team(session, task_id, target_id) is not None:
+                continue
+            await dispatch_to_team(session, bot, task, target_id, now)
+        await session.commit()
+
+    return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/{task_id}/edit", response_class=HTMLResponse)
@@ -325,7 +424,13 @@ async def edit_task_route(
     no_deadline: bool = Form(default=False),
     deadline_date: str = Form(default=""),
     deadline_time: str = Form(default=""),
-    penalty_points: int = Form(default=2),
+    penalty_points: int = Form(default=0),
+    criterion: str = Form(default="pass_fail"),
+    pass_points: int = Form(default=5),
+    rank_points_1: int = Form(default=30),
+    rank_points_2: int = Form(default=20),
+    rank_points_3: int = Form(default=10),
+    short_code: str = Form(default=""),
     attachment: UploadFile | None = File(default=None),
     remove_attachment: bool = Form(default=False),
     admin: AdminUser = Depends(get_current_admin),
@@ -343,6 +448,9 @@ async def edit_task_route(
         deadline_date=deadline_date,
         deadline_time=deadline_time,
     )
+    criterion_value, pass_points_value, rank_points_value = _parse_criterion(
+        criterion, pass_points, rank_points_1, rank_points_2, rank_points_3
+    )
 
     storage = S3Storage(get_settings())
     async with async_session_factory() as session:
@@ -357,8 +465,12 @@ async def edit_task_route(
             deadline_at=deadline_at,
             is_daily=is_daily,
             penalty_points=penalty_points,
+            criterion=criterion_value,
+            pass_points=pass_points_value,
+            rank_points=rank_points_value,
             trigger_task_id=trigger_id,
             trigger_delay_minutes=delay_minutes,
+            short_code=short_code.strip() or None,
         )
 
         photo_key, video_key = await _save_attachment(storage, task.id, attachment)

@@ -16,13 +16,12 @@
         <div class="table-scroll">
         <table class="applications-table">
             <thead>
-                <tr><th>Участник</th><th>Роль</th><th></th></tr>
+                <tr><th>Участник</th><th></th></tr>
             </thead>
             <tbody>
                 {% for m in team.members %}
                 <tr>
                     <td>{{ m.full_name }}</td>
-                    <td>{% if m.is_blogger %}<span class="status-badge status-badge--waiting">{{ icons.svg("star", 11) }} Блогер</span>{% else %}Участник{% endif %}</td>
                     <td>
                         <form method="post" action="/teams/{{ team.id }}/remove-member" class="inline-form">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -72,7 +71,7 @@
                 <select id="adjust-participant" name="participant_id">
                     <option value="">— выбрать —</option>
                     {% for m in team.members %}
-                    <option value="{{ m.id }}">{{ m.full_name }}{% if m.is_blogger %} (блогер){% endif %}</option>
+                    <option value="{{ m.id }}">{{ m.full_name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -105,11 +104,8 @@
             <div class="form-field" style="flex: 1;">
                 <select name="application_id" required>
                     <option value="">— выбрать —</option>
-                    {% for app in winners %}
-                    <option value="{{ app.id }}">{{ app.full_name }} ({{ app.participant_number or "—" }})</option>
-                    {% endfor %}
-                    {% for app in bloggers %}
-                    <option value="{{ app.id }}">{{ app.full_name }} (блогер)</option>
+                    {% for app in unassigned %}
+                    <option value="{{ app.id }}">{{ app.full_name }}</option>
                     {% endfor %}
                 </select>
             </div>

@@ -4,7 +4,7 @@
 {% block title %}Команды — LUKOIL NOMAD{% endblock %}
 
 {% block page_title %}Команды{% endblock %}
-{% block page_subtitle %}<p class="topbar__subtitle">До 3 участников на команду, включая блогера</p>{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Экипажи экспедиции</p>{% endblock %}
 {% block page_actions %}<a class="link-button" href="/tasks">{{ icons.svg("clipboard-list", 15) }} Задания и рейтинг</a>{% endblock %}
 
 {% block content %}
@@ -19,27 +19,15 @@
                 <input type="text" id="team-name" name="name" placeholder="Например, «Команда А»" required>
             </div>
 
-            <p class="field-group-label">Победители (до 3 человек)</p>
+            <p class="field-group-label">Участники (не в команде)</p>
             <div class="checkbox-list">
-                {% for app in winners %}
+                {% for app in unassigned %}
                 <label class="checkbox-row">
                     <input type="checkbox" name="member_ids" value="{{ app.id }}">
-                    {{ app.full_name }} <span class="muted">({{ app.participant_number or "—" }})</span>
+                    {{ app.full_name }}
                 </label>
                 {% else %}
-                <p class="muted">Нет свободных победителей.</p>
-                {% endfor %}
-            </div>
-
-            <p class="field-group-label">{{ icons.svg("star", 14) }} Блогер (опционально)</p>
-            <div class="checkbox-list">
-                {% for app in bloggers %}
-                <label class="checkbox-row">
-                    <input type="checkbox" name="member_ids" value="{{ app.id }}">
-                    {{ app.full_name }} <span class="muted">(блогер)</span>
-                </label>
-                {% else %}
-                <p class="muted">Нет свободных блогеров.</p>
+                <p class="muted">Нет незакреплённых участников.</p>
                 {% endfor %}
             </div>
 
@@ -64,7 +52,7 @@
                 {% for team in teams %}
                 <tr>
                     <td>{{ team.name }}</td>
-                    <td>{% for m in team.members %}{{ m.full_name }}{% if m.is_blogger %} (блогер){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    <td>{% for m in team.members %}{{ m.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
                     <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
                     <td><a href="/teams/{{ team.id }}" class="table-link">Открыть {{ icons.svg("chevron-right", 13) }}</a></td>
                 </tr>

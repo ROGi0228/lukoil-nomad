@@ -9,12 +9,13 @@ from arq.cron import cron
 
 from src.core.config import get_settings
 from src.core.logging import configure_logging, get_logger
-from src.workers.tasks.ocr_tasks import process_document_ocr
 from src.workers.tasks.task_scheduler import (
+    GLOBAL_MISSION_REMINDER_HOUR_UTC,
     apply_deadline_penalties,
     dispatch_due_tasks,
     dispatch_trigger_based_tasks,
     send_deadline_reminders,
+    send_global_mission_reminders,
 )
 
 logger = get_logger(__name__)
@@ -49,15 +50,17 @@ configure_logging(settings)
 
 
 class WorkerSettings:
-    functions: list[Any] = [health_check, process_document_ocr]
+    functions: list[Any] = [health_check]
     # Раз в минуту: разослать задания, у которых наступило время отправки, отправить
     # задания-триггеры командам, выполнившим предыдущее задание, напомнить командам,
     # ещё не сдавшим задание, что дедлайн скоро, и оштрафовать тех, кто его просрочил.
+    # Раз в день (GLOBAL_MISSION_REMINDER_HOUR_UTC) — напоминание про глобальные миссии.
     cron_jobs: list[Any] = [
         cron(dispatch_due_tasks),
         cron(dispatch_trigger_based_tasks),
         cron(send_deadline_reminders),
         cron(apply_deadline_penalties),
+        cron(send_global_mission_reminders, hour=GLOBAL_MISSION_REMINDER_HOUR_UTC, minute=0),
     ]
     on_startup = startup
     on_shutdown = shutdown

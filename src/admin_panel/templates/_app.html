@@ -17,10 +17,7 @@
 
         <nav class="sidebar__nav">
             <a href="/" class="sidebar__link{% if request.url.path == '/' or request.url.path.startswith('/applications') %} sidebar__link--active{% endif %}">
-                {{ icons.svg("inbox") }}<span>Заявки</span>
-            </a>
-            <a href="/selection" class="sidebar__link{% if request.url.path.startswith('/selection') %} sidebar__link--active{% endif %}">
-                {{ icons.svg("award") }}<span>Отбор и голосование</span>
+                {{ icons.svg("inbox") }}<span>Участники</span>
             </a>
             <a href="/teams" class="sidebar__link{% if request.url.path.startswith('/teams') %} sidebar__link--active{% endif %}">
                 {{ icons.svg("users") }}<span>Команды</span>

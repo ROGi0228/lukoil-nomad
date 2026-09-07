@@ -1,9 +1,4 @@
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-)
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.bot.i18n import Lang, t
 
@@ -19,12 +14,4 @@ def pdn_consent_keyboard(lang: Lang) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=t(lang, "btn_pdn_decline"), callback_data=PDN_DECLINE_CALLBACK)],
             [InlineKeyboardButton(text=t(lang, "btn_pdn_restart"), callback_data=PDN_RESTART_CALLBACK)],
         ]
-    )
-
-
-def phone_request_keyboard(lang: Lang) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=t(lang, "btn_send_phone"), request_contact=True)]],
-        resize_keyboard=True,
-        one_time_keyboard=True,
     )

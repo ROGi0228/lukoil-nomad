@@ -18,7 +18,6 @@ from src.admin_panel.routers import (
     broadcast,
     dashboard,
     health,
-    selection,
     tasks,
     teams,
 )
@@ -56,7 +55,6 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(applications.router)
-    app.include_router(selection.router)
     app.include_router(teams.router)
     app.include_router(tasks.router)
     app.include_router(broadcast.router)

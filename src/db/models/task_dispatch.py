@@ -26,7 +26,12 @@ class TaskDispatch(Base, TimestampMixin):
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
 
     sent_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    # NULL, пока команда не нажала «Готово» — именно этот момент, а не первое
+    # вложение, определяет место/баллы (claim_dispatch в task_repository.py).
     completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    # Застолбливается за участником уже на ПЕРВОМ вложении (claim_submission_slot) —
+    # чтобы двое из команды не собирали вложения к одной сдаче параллельно. Не значит
+    # "сдача завершена" сама по себе, это решает только completed_at.
     completed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     # +5/+3/+1 за 1/2/3-е место по скорости, 0 — уложились, но не в тройке,
     # -penalty_points — просрочили дедлайн. NULL, пока не наступило ни то ни другое.
@@ -40,8 +45,9 @@ class TaskDispatch(Base, TimestampMixin):
     team: Mapped[Team] = relationship()
     # Подтверждение сдачи — одно или несколько вложений (фото/видео/текст). Без этого
     # "первый нажавший" ничего не значит: кнопка не требует реального выполнения
-    # задания, только клика. Рейтинг фиксируется по первому вложению, но команда может
-    # прислать ещё, пока не нажмёт «Готово» (см. src/bot/handlers/tasks.py).
+    # задания, только клика. Место/баллы фиксируются по нажатию «Готово», не по
+    # первому вложению — можно прислать сколько угодно, пока не нажата эта кнопка
+    # (см. src/bot/handlers/tasks.py).
     submission_items: Mapped[list[TaskSubmissionItem]] = relationship(
         back_populates="dispatch", order_by="TaskSubmissionItem.id"
     )

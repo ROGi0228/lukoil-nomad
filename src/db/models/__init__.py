@@ -8,7 +8,6 @@ from src.db.models.app_settings import AppSettings
 from src.db.models.application import Application
 from src.db.models.base import Base
 from src.db.models.broadcast import Broadcast, BroadcastMessage
-from src.db.models.moderation_log import ModerationLog
 from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.task_dispatch_message import TaskDispatchMessage
@@ -24,7 +23,6 @@ __all__ = [
     "Base",
     "Broadcast",
     "BroadcastMessage",
-    "ModerationLog",
     "Task",
     "TaskDispatch",
     "TaskDispatchMessage",

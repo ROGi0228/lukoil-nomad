@@ -18,6 +18,12 @@
             <input type="text" id="task-title" name="title" value="{{ task.title }}" required>
         </div>
 
+        <div class="form-field" style="max-width: 160px;">
+            <label for="task-short-code">Код (день.задание)</label>
+            <input type="text" id="task-short-code" name="short_code" value="{{ task.short_code or '' }}" placeholder="1.1" maxlength="20">
+            <p class="field-hint">Опционально — если задан, задание появится колонкой в табличном /leaderboard бота.</p>
+        </div>
+
         <div class="form-field">
             <label for="task-description">Текст задания для команд</label>
             <textarea id="task-description" name="description" required>{{ task.description }}</textarea>
@@ -43,14 +49,58 @@
             {% endif %}
         </div>
 
+        <p class="field-group-label">Критерий оценки</p>
+        <div class="audience-picker">
+            <label class="radio-row">
+                <input type="radio" name="criterion" value="pass_fail" {% if task.criterion.value == "pass_fail" %}checked{% endif %}> {{ icons.svg("check", 15) }} Выполнил/не выполнил
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="criterion" value="speed_rank" {% if task.criterion.value == "speed_rank" %}checked{% endif %}> {{ icons.svg("trophy", 15) }} Кто первым (авто, по скорости сдачи)
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="criterion" value="manual" {% if task.criterion.value == "manual" %}checked{% endif %}> {{ icons.svg("pencil", 15) }} Вручную (баллы проставляет админ)
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="criterion" value="global_mission" {% if task.criterion.value == "global_mission" %}checked{% endif %}> {{ icons.svg("globe", 15) }} Глобальная миссия (без кнопки «Сдать», с напоминаниями)
+            </label>
+        </div>
+
+        <div class="conditional-field conditional-field--pass_fail form-field" style="max-width: 220px;">
+            <label for="pass-points">Баллы за выполнение</label>
+            <input type="number" id="pass-points" name="pass_points" value="{{ task.pass_points }}" min="0">
+        </div>
+
+        <div class="conditional-field conditional-field--speed_rank form-row">
+            <div class="form-field" style="max-width: 140px;">
+                <label for="rank-points-1">1 место</label>
+                <input type="number" id="rank-points-1" name="rank_points_1" value="{{ task.rank_points[0] }}" min="0">
+            </div>
+            <div class="form-field" style="max-width: 140px;">
+                <label for="rank-points-2">2 место</label>
+                <input type="number" id="rank-points-2" name="rank_points_2" value="{{ task.rank_points[1] }}" min="0">
+            </div>
+            <div class="form-field" style="max-width: 140px;">
+                <label for="rank-points-3">3 место</label>
+                <input type="number" id="rank-points-3" name="rank_points_3" value="{{ task.rank_points[2] }}" min="0">
+            </div>
+        </div>
+        <p class="field-hint" style="margin-bottom: 0.9rem;">Вручную — бот только собирает вложения (доказательства), баллы за каждую команду проставляются на странице задания после сдачи. Глобальная миссия — рассылается один раз без кнопки «Сдать», команде ежедневно приходит напоминание, баллы проставляет админ здесь же в конце (после дедлайна).</p>
+
         <p class="field-group-label">Когда отправлять</p>
         <div class="audience-picker">
             <label class="radio-row">
-                <input type="radio" name="schedule_mode" value="fixed" {% if not task.trigger_task_id %}checked{% endif %}> {{ icons.svg("clock", 15) }} В заданное время
+                <input type="radio" name="schedule_mode" value="fixed" {% if not task.trigger_task_id and task.send_at %}checked{% endif %}> {{ icons.svg("clock", 15) }} В заданное время
             </label>
             <label class="radio-row">
                 <input type="radio" name="schedule_mode" value="trigger" {% if task.trigger_task_id %}checked{% endif %}> {{ icons.svg("send", 15) }} После другого задания
             </label>
+            <label class="radio-row">
+                <input type="radio" name="schedule_mode" value="manual" {% if not task.trigger_task_id and not task.send_at %}checked{% endif %}> {{ icons.svg("pencil", 15) }} Вручную (форс-мажор/wildcard)
+            </label>
+        </div>
+
+        <div class="conditional-field conditional-field--manual">
+            <p class="field-hint">Задание не уйдёт по расписанию — координатор запускает его кнопкой «Отправить сейчас» на странице задания, когда понадобится на месте.</p>
         </div>
 
         <div class="conditional-field conditional-field--fixed">

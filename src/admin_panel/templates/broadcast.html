@@ -4,7 +4,7 @@
 {% block title %}Рассылка — LUKOIL NOMAD{% endblock %}
 
 {% block page_title %}Рассылка сообщений{% endblock %}
-{% block page_subtitle %}<p class="topbar__subtitle">Массово — победителям, команде или лично</p>{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Массово — всем участникам, команде или лично</p>{% endblock %}
 
 {% block content %}
 {% if sent_count is not none %}
@@ -22,7 +22,7 @@
     <div class="audience-picker">
         <label class="radio-row">
             <input type="radio" name="audience" value="all" {% if form.audience == "all" %}checked{% endif %}>
-            {{ icons.svg("award", 15) }} Всем победителям и блогерам
+            {{ icons.svg("award", 15) }} Всем зарегистрированным
         </label>
         <label class="radio-row">
             <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
@@ -45,12 +45,12 @@
     </div>
 
     <div class="conditional-field conditional-field--participant form-field" style="max-width: 320px;">
-        <label for="broadcast-participant">Участник или блогер</label>
+        <label for="broadcast-participant">Участник</label>
         <select id="broadcast-participant" name="participant">
             <option value="">Выберите участника</option>
             {% for app in participants %}
             <option value="{{ app.id }}" {% if form.participant == app.id | string %}selected{% endif %}>
-                {{ app.full_name }}{% if app.is_blogger %} (блогер){% else %} ({{ app.participant_number or "—" }}){% endif %}
+                {{ app.full_name }}
             </option>
             {% endfor %}
         </select>

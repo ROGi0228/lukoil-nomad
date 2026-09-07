@@ -7,7 +7,7 @@ from src.core.config import get_settings
 
 # сюда добавлять импорт каждой новой модели по мере появления,
 # иначе Base.metadata не увидит таблицу при автогенерации миграций
-from src.db.models import admin_user, application, moderation_log, user  # noqa: E402,F401
+from src.db.models import admin_user, application, user  # noqa: E402,F401
 from src.db.models.base import Base
 
 config = context.config

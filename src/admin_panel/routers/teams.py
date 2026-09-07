@@ -7,17 +7,20 @@ from starlette import status
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import format_dt
+from src.admin_panel.notify_helpers import notify_new_team_members
 from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
 from src.db.models.admin_user import AdminUser
-from src.db.repositories.application_repository import get_application, get_application_contact
+from src.db.repositories.application_repository import (
+    get_application,
+    get_application_contact,
+    list_unassigned_applications,
+)
 from src.db.repositories.team_repository import (
     add_point_adjustment,
     create_team,
     get_team,
     get_team_score,
-    list_available_bloggers,
-    list_available_winners,
     list_point_adjustments,
     list_team_member_contacts,
     list_teams,
@@ -34,8 +37,7 @@ async def teams_page(request: Request, admin: AdminUser = Depends(get_current_ad
     async with async_session_factory() as session:
         teams = await list_teams(session)
         scores = {team.id: await get_team_score(session, team.id) for team in teams}
-        winners = await list_available_winners(session)
-        bloggers = await list_available_bloggers(session)
+        unassigned = await list_unassigned_applications(session)
 
     return templates.TemplateResponse(
         request,
@@ -45,26 +47,34 @@ async def teams_page(request: Request, admin: AdminUser = Depends(get_current_ad
             "csrf_token": get_csrf_token(request),
             "teams": teams,
             "scores": scores,
-            "winners": winners,
-            "bloggers": bloggers,
+            "unassigned": unassigned,
         },
     )
 
 
 @router.post("", response_model=None)
 async def create_team_route(
+    request: Request,
     name: str = Form(...),
     member_ids: list[int] = Form(default=[]),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
+    assigned_ids: list[int] = []
     async with async_session_factory() as session:
         team = await create_team(session, name)
+        team_id = team.id
         for application_id in member_ids:
             application = await get_application(session, application_id)
             if application is not None and application.team_id is None:
-                application.team_id = team.id
+                application.team_id = team_id
+                assigned_ids.append(application_id)
         await session.commit()
+
+    if assigned_ids:
+        bot: Bot = request.app.state.bot
+        async with async_session_factory() as session:
+            await notify_new_team_members(bot, session, team_id, assigned_ids)
 
     return RedirectResponse("/teams", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -78,8 +88,7 @@ async def team_detail(
         if team is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         score = await get_team_score(session, team_id)
-        bloggers = await list_available_bloggers(session)
-        winners = await list_available_winners(session)
+        unassigned = await list_unassigned_applications(session)
         adjustments = await list_point_adjustments(session, team_id)
 
     return templates.TemplateResponse(
@@ -90,8 +99,7 @@ async def team_detail(
             "csrf_token": get_csrf_token(request),
             "team": team,
             "score": score,
-            "bloggers": bloggers,
-            "winners": winners,
+            "unassigned": unassigned,
             "adjustments": adjustments,
         },
     )
@@ -135,15 +143,23 @@ async def adjust_points_route(
 @router.post("/{team_id}/add-member", response_model=None)
 async def add_team_member(
     team_id: int,
+    request: Request,
     application_id: int = Form(...),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
+    assigned = False
     async with async_session_factory() as session:
         application = await get_application(session, application_id)
         if application is not None and application.team_id is None:
             application.team_id = team_id
+            assigned = True
         await session.commit()
+
+    if assigned:
+        bot: Bot = request.app.state.bot
+        async with async_session_factory() as session:
+            await notify_new_team_members(bot, session, team_id, [application_id])
 
     return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
 

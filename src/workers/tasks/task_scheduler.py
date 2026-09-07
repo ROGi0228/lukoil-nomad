@@ -14,6 +14,7 @@ from src.db.repositories.task_repository import (
     add_dispatch_message,
     create_dispatch,
     get_dispatch_for_team,
+    list_active_global_mission_dispatches,
     list_completed_dispatches_for_task,
     list_dispatches_needing_deadline_reminder,
     list_dispatches_needing_penalty_check,
@@ -23,14 +24,19 @@ from src.db.repositories.task_repository import (
 from src.db.repositories.team_repository import list_all_team_ids, list_team_member_contacts
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
+from src.shared.enums import TaskCriterion
 
 logger = get_logger(__name__)
 
 # За сколько минут до дедлайна напоминать команде, что задание ещё не сдано.
 REMINDER_MINUTES_BEFORE = 15
 
+# Ежедневное напоминание про глобальные миссии (Критерий №3) — 10:00 по Алматы
+# (UTC+5, без перехода на летнее время, см. src/admin_panel/display.py).
+GLOBAL_MISSION_REMINDER_HOUR_UTC = 5
 
-async def _dispatch_to_team(
+
+async def dispatch_to_team(
     session: AsyncSession, bot: Bot, task: Task, team_id: int, sent_at: dt.datetime
 ) -> None:
     dispatch = await create_dispatch(session, task_id=task.id, team_id=team_id, sent_at=sent_at)
@@ -63,7 +69,14 @@ async def _dispatch_to_team(
                 description=task.description,
             )
         try:
-            keyboard = task_dispatch_keyboard(lang, dispatch.id)
+            # Глобальная миссия (Критерий №3) — чисто информационная рассылка, без
+            # кнопки «Сдать задание»: сдачи через бота у неё нет, баллы в конце
+            # проставляет админ вручную (см. set_dispatch_points).
+            keyboard = (
+                None
+                if task.criterion == TaskCriterion.GLOBAL_MISSION
+                else task_dispatch_keyboard(lang, dispatch.id)
+            )
             if attachment_url is not None and task.attachment_photo_key:
                 sent = await bot.send_photo(
                     telegram_id, photo=attachment_url, caption=text, reply_markup=keyboard
@@ -93,7 +106,7 @@ async def dispatch_due_tasks(ctx: dict[str, Any]) -> None:
         for task in due_tasks:
             team_ids = await list_all_team_ids(session)
             for team_id in team_ids:
-                await _dispatch_to_team(session, bot, task, team_id, now)
+                await dispatch_to_team(session, bot, task, team_id, now)
             task.dispatched = True
         await session.commit()
 
@@ -121,7 +134,7 @@ async def dispatch_trigger_based_tasks(ctx: dict[str, Any]) -> None:
                 existing = await get_dispatch_for_team(session, task.id, trigger_dispatch.team_id)
                 if existing is not None:
                     continue
-                await _dispatch_to_team(session, bot, task, trigger_dispatch.team_id, now)
+                await dispatch_to_team(session, bot, task, trigger_dispatch.team_id, now)
         await session.commit()
 
 
@@ -151,6 +164,27 @@ async def send_deadline_reminders(ctx: dict[str, Any]) -> None:
                 )
                 await notify_user(bot, telegram_id, text)
         await session.commit()
+
+
+async def send_global_mission_reminders(ctx: dict[str, Any]) -> None:
+    """Cron-джоб (раз в день, GLOBAL_MISSION_REMINDER_HOUR_UTC): напоминает командам
+    про ещё не оценённые глобальные миссии — они рассылаются один раз в начале и
+    живут до финального дедлайна, без кнопки «Сдать», поэтому команде легко про них
+    забыть без периодического напоминания."""
+    bot: Bot = ctx["bot"]
+    now = dt.datetime.now(dt.UTC)
+
+    async with async_session_factory() as session:
+        active = await list_active_global_mission_dispatches(session, now)
+        for dispatch in active:
+            task = dispatch.task
+            contacts = await list_team_member_contacts(session, dispatch.team_id)
+            for telegram_id, language in contacts:
+                lang = resolve_lang(language)
+                text = t(
+                    lang, "global_mission_reminder", title=task.title, description=task.description
+                )
+                await notify_user(bot, telegram_id, text)
 
 
 async def apply_deadline_penalties(ctx: dict[str, Any]) -> None:

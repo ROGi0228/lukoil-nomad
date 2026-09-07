@@ -43,11 +43,6 @@ class Settings(BaseSettings):
     s3_bucket: str
     s3_region: str = "us-east-1"
 
-    ocr_primary_provider: Literal["google_vision", "yandex_vision"] = "google_vision"
-    google_application_credentials: str = ""
-    yandex_vision_api_key: str = ""
-    yandex_vision_folder_id: str = ""
-
     sentry_dsn: str = ""
     log_level: str = "INFO"
     log_json: bool = True
