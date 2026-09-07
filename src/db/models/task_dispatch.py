@@ -3,27 +3,37 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from src.db.models.application import Application
     from src.db.models.task import Task
     from src.db.models.task_submission_item import TaskSubmissionItem
     from src.db.models.team import Team
 
 
 class TaskDispatch(Base, TimestampMixin):
-    """Доставка одного Task одной Team — ровно одна строка на пару (task, team),
-    здесь же фиксируется выполнение и начисленные баллы."""
+    """Доставка одного Task одной Team (обычное задание) ИЛИ одному Application
+    (личное задание, Task.is_personal — team_id/application_id взаимоисключающие,
+    ровно одно из двух заполнено) — здесь же фиксируется выполнение и начисленные
+    баллы, независимо от того, какой из двух вариантов."""
 
     __tablename__ = "task_dispatches"
-    __table_args__ = (UniqueConstraint("task_id", "team_id"),)
+    __table_args__ = (
+        UniqueConstraint("task_id", "team_id"),
+        UniqueConstraint("task_id", "application_id"),
+        CheckConstraint(
+            "num_nonnulls(team_id, application_id) = 1", name="ck_task_dispatch_team_xor_application"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), index=True)
-    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), index=True)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id"), index=True)
 
     sent_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     # NULL, пока команда не нажала «Готово» — именно этот момент, а не первое
@@ -42,7 +52,8 @@ class TaskDispatch(Base, TimestampMixin):
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     task: Mapped[Task] = relationship()
-    team: Mapped[Team] = relationship()
+    team: Mapped[Team | None] = relationship()
+    application: Mapped[Application | None] = relationship()
     # Подтверждение сдачи — одно или несколько вложений (фото/видео/текст). Без этого
     # "первый нажавший" ничего не значит: кнопка не требует реального выполнения
     # задания, только клика. Место/баллы фиксируются по нажатию «Готово», не по

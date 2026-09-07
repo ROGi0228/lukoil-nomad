@@ -14,9 +14,12 @@ from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user, try_delete_message
 from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
+from src.db.repositories.application_repository import list_all_applications
 from src.db.repositories.task_repository import (
     create_task,
+    dispatch_contacts,
     get_dispatch,
+    get_dispatch_for_application,
     get_dispatch_for_team,
     get_task,
     list_dispatch_messages_for_task,
@@ -26,16 +29,11 @@ from src.db.repositories.task_repository import (
     set_task_attachment,
     update_task,
 )
-from src.db.repositories.team_repository import (
-    get_team_score,
-    list_all_team_ids,
-    list_team_member_contacts,
-    list_teams,
-)
+from src.db.repositories.team_repository import get_team_score, list_all_team_ids, list_teams
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
 from src.shared.enums import TaskCriterion
-from src.workers.tasks.task_scheduler import dispatch_to_team
+from src.workers.tasks.task_scheduler import dispatch_to_participant, dispatch_to_team
 
 router = APIRouter(prefix="/tasks")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
@@ -184,6 +182,7 @@ async def create_task_route(
     rank_points_2: int = Form(default=20),
     rank_points_3: int = Form(default=10),
     short_code: str = Form(default=""),
+    is_personal: bool = Form(default=False),
     attachment: UploadFile | None = File(default=None),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
@@ -218,6 +217,7 @@ async def create_task_route(
             pass_points=pass_points_value,
             rank_points=rank_points_value,
             short_code=short_code.strip() or None,
+            is_personal=is_personal,
             trigger_task_id=trigger_id,
             trigger_delay_minutes=delay_minutes,
         )
@@ -246,6 +246,7 @@ async def task_detail(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         dispatches = await list_dispatches_for_task(session, task_id)
         teams = await list_teams(session)
+        total_applications = len(await list_all_applications(session))
         message_count = len(await list_dispatch_messages_for_task(session, task_id))
 
     submission_urls: dict[int, str] = {}
@@ -272,6 +273,7 @@ async def task_detail(
             "dispatches": dispatches,
             "teams": teams,
             "total_teams": len(teams),
+            "total_applications": total_applications,
             "submission_urls": submission_urls,
             "attachment_url": attachment_url,
             "message_count": message_count,
@@ -327,8 +329,7 @@ async def score_dispatch(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         await set_dispatch_points(session, dispatch=dispatch, points=points)
         await session.commit()
-        team_id = dispatch.team_id
-        contacts = await list_team_member_contacts(session, team_id) if notify else []
+        contacts = await dispatch_contacts(session, dispatch) if notify else []
 
     if notify:
         bot: Bot = request.app.state.bot
@@ -360,11 +361,17 @@ async def dispatch_now(
         if task.send_at is not None or task.trigger_task_id is not None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-        target_team_ids = [int(team_id)] if team_id else await list_all_team_ids(session)
-        for target_id in target_team_ids:
-            if await get_dispatch_for_team(session, task_id, target_id) is not None:
-                continue
-            await dispatch_to_team(session, bot, task, target_id, now)
+        if task.is_personal:
+            for application in await list_all_applications(session):
+                if await get_dispatch_for_application(session, task_id, application.id) is not None:
+                    continue
+                await dispatch_to_participant(session, bot, task, application.id, now)
+        else:
+            target_team_ids = [int(team_id)] if team_id else await list_all_team_ids(session)
+            for target_id in target_team_ids:
+                if await get_dispatch_for_team(session, task_id, target_id) is not None:
+                    continue
+                await dispatch_to_team(session, bot, task, target_id, now)
         await session.commit()
 
     return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -431,6 +438,7 @@ async def edit_task_route(
     rank_points_2: int = Form(default=20),
     rank_points_3: int = Form(default=10),
     short_code: str = Form(default=""),
+    is_personal: bool = Form(default=False),
     attachment: UploadFile | None = File(default=None),
     remove_attachment: bool = Form(default=False),
     admin: AdminUser = Depends(get_current_admin),
@@ -471,6 +479,7 @@ async def edit_task_route(
             trigger_task_id=trigger_id,
             trigger_delay_minutes=delay_minutes,
             short_code=short_code.strip() or None,
+            is_personal=is_personal,
         )
 
         photo_key, video_key = await _save_attachment(storage, task.id, attachment)

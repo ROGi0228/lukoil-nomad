@@ -8,6 +8,8 @@ from src.db.models.task import Task
 from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.task_dispatch_message import TaskDispatchMessage
 from src.db.models.task_submission_item import TaskSubmissionItem
+from src.db.repositories.application_repository import get_application_contact
+from src.db.repositories.team_repository import list_team_member_contacts
 from src.shared.enums import TaskCriterion
 
 
@@ -24,6 +26,7 @@ async def create_task(
     pass_points: int,
     rank_points: list[int],
     short_code: str | None = None,
+    is_personal: bool = False,
     trigger_task_id: int | None = None,
     trigger_delay_minutes: int | None = None,
 ) -> Task:
@@ -38,6 +41,7 @@ async def create_task(
         pass_points=pass_points,
         rank_points=rank_points,
         short_code=short_code,
+        is_personal=is_personal,
         trigger_task_id=trigger_task_id,
         trigger_delay_minutes=trigger_delay_minutes,
     )
@@ -61,11 +65,13 @@ async def update_task(
     trigger_task_id: int | None,
     trigger_delay_minutes: int | None,
     short_code: str | None = None,
+    is_personal: bool = False,
 ) -> None:
     """Правит уже созданное задание — например, если админ ошибся в дате/дедлайне.
     Уже отправленные сообщения при этом не меняются, только дальнейшее поведение
     (напоминания/штраф считаются по новому дедлайну, будущие триггер-рассылки — по
-    новым trigger_task_id/trigger_delay_minutes)."""
+    новым trigger_task_id/trigger_delay_minutes). is_personal тоже не трогает уже
+    созданные диспетчи — только то, как задание будет разослано в следующий раз."""
     task.title = title
     task.description = description
     task.send_at = send_at
@@ -78,6 +84,7 @@ async def update_task(
     task.trigger_task_id = trigger_task_id
     task.trigger_delay_minutes = trigger_delay_minutes
     task.short_code = short_code
+    task.is_personal = is_personal
 
 
 def set_task_attachment(
@@ -141,6 +148,17 @@ async def get_dispatch_for_team(
     return result.scalar_one_or_none()
 
 
+async def get_dispatch_for_application(
+    session: AsyncSession, task_id: int, application_id: int
+) -> TaskDispatch | None:
+    result = await session.execute(
+        select(TaskDispatch)
+        .where(TaskDispatch.task_id == task_id)
+        .where(TaskDispatch.application_id == application_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_dispatches_needing_penalty_check(
     session: AsyncSession, now: dt.datetime
 ) -> list[TaskDispatch]:
@@ -150,9 +168,10 @@ async def list_dispatches_needing_penalty_check(
         .where(TaskDispatch.completed_at.is_(None))
         .where(TaskDispatch.penalty_applied.is_(False))
         .where(Task.deadline_at <= now)
-        # Глобальные миссии не сдаются через бота вообще (нет кнопки) — их некому
-        # "просрочить" автоматически, баллы всегда проставляет админ вручную.
-        .where(Task.criterion != TaskCriterion.GLOBAL_MISSION)
+        # Глобальные миссии (оба варианта критерия №3) оцениваются жюри вручную по
+        # решению, а не штрафуются автоматически за просрочку — правила экспедиции
+        # не называют для них конкретный штраф, в отличие от обычных заданий.
+        .where(Task.criterion.not_in([TaskCriterion.GLOBAL_MISSION, TaskCriterion.GLOBAL_MISSION_SUBMIT]))
         .options(selectinload(TaskDispatch.task))
     )
     return list(result.scalars().all())
@@ -179,9 +198,18 @@ async def list_dispatches_needing_deadline_reminder(
 
 
 async def create_dispatch(
-    session: AsyncSession, *, task_id: int, team_id: int, sent_at: dt.datetime
+    session: AsyncSession,
+    *,
+    task_id: int,
+    sent_at: dt.datetime,
+    team_id: int | None = None,
+    application_id: int | None = None,
 ) -> TaskDispatch:
-    dispatch = TaskDispatch(task_id=task_id, team_id=team_id, sent_at=sent_at)
+    """Ровно один из team_id/application_id должен быть передан (см.
+    ck_task_dispatch_team_xor_application) — команде или лично участнику."""
+    dispatch = TaskDispatch(
+        task_id=task_id, team_id=team_id, application_id=application_id, sent_at=sent_at
+    )
     session.add(dispatch)
     await session.flush()
     return dispatch
@@ -189,6 +217,18 @@ async def create_dispatch(
 
 async def get_dispatch(session: AsyncSession, dispatch_id: int) -> TaskDispatch | None:
     return await session.get(TaskDispatch, dispatch_id)
+
+
+async def dispatch_contacts(session: AsyncSession, dispatch: TaskDispatch) -> list[tuple[int, str | None]]:
+    """(telegram_id, language) получателей этого диспетча — вся команда для обычного
+    задания, один участник для личного (Task.is_personal, dispatch.team_id is None).
+    Используется и планировщиком (рассылка), и ботом (уведомление о сдаче) — один
+    источник истины на оба случая, чтобы не разойтись при добавлении личных заданий."""
+    if dispatch.team_id is not None:
+        return await list_team_member_contacts(session, dispatch.team_id)
+    assert dispatch.application_id is not None
+    contact = await get_application_contact(session, dispatch.application_id)
+    return [contact] if contact is not None else []
 
 
 async def claim_dispatch(
@@ -257,13 +297,18 @@ async def set_dispatch_points(session: AsyncSession, *, dispatch: TaskDispatch, 
 async def list_active_global_mission_dispatches(
     session: AsyncSession, now: dt.datetime
 ) -> list[TaskDispatch]:
-    """Глобальные миссии (Критерий №3), ещё не оценённые админом и (если есть
-    дедлайн) не просроченные — для ежедневного напоминания командам."""
+    """Глобальные миссии (Критерий №3, оба варианта — с сдачей и без), ещё не
+    завершённые и (если есть дедлайн) не просроченные — для ежедневного
+    напоминания. completed_at, а не points_awarded — иначе GLOBAL_MISSION_SUBMIT
+    продолжала бы напоминать уже после того, как её сдали, просто до того, как
+    админ проставил баллы жюри."""
     result = await session.execute(
         select(TaskDispatch)
         .join(Task, TaskDispatch.task_id == Task.id)
-        .where(Task.criterion == TaskCriterion.GLOBAL_MISSION)
-        .where(TaskDispatch.points_awarded.is_(None))
+        .where(
+            Task.criterion.in_([TaskCriterion.GLOBAL_MISSION, TaskCriterion.GLOBAL_MISSION_SUBMIT])
+        )
+        .where(TaskDispatch.completed_at.is_(None))
         .where(or_(Task.deadline_at.is_(None), Task.deadline_at > now))
         .options(selectinload(TaskDispatch.task))
     )
@@ -274,20 +319,27 @@ async def list_dispatches_for_task(session: AsyncSession, task_id: int) -> list[
     result = await session.execute(
         select(TaskDispatch)
         .where(TaskDispatch.task_id == task_id)
-        .options(selectinload(TaskDispatch.team), selectinload(TaskDispatch.submission_items))
+        .options(
+            selectinload(TaskDispatch.team),
+            selectinload(TaskDispatch.application),
+            selectinload(TaskDispatch.submission_items),
+        )
         .order_by(TaskDispatch.completed_at.is_(None), TaskDispatch.completed_at)
     )
     return list(result.scalars().all())
 
 
 async def list_dispatches_with_short_code(session: AsyncSession) -> list[TaskDispatch]:
-    """Все диспетчи заданий с заполненным short_code, по всем командам разом — сырьё
-    для таблицы /leaderboard (см. src/bot/leaderboard_table.py): одна выборка вместо
-    запроса на каждую команду, колонки таблицы общие для всех строк."""
+    """Все КОМАНДНЫЕ диспетчи заданий с заполненным short_code, по всем командам
+    разом — сырьё для таблицы /leaderboard (см. src/bot/leaderboard_table.py): одна
+    выборка вместо запроса на каждую команду, колонки таблицы общие для всех строк.
+    Личные задания (team_id IS NULL) сюда не попадают — таблица по смыслу командная,
+    личный зачёт не в команду."""
     result = await session.execute(
         select(TaskDispatch)
         .join(Task, TaskDispatch.task_id == Task.id)
         .where(Task.short_code.is_not(None))
+        .where(TaskDispatch.team_id.is_not(None))
         .options(selectinload(TaskDispatch.task))
     )
     return list(result.scalars().all())
@@ -298,6 +350,20 @@ async def list_dispatches_for_team(session: AsyncSession, team_id: int) -> list[
     result = await session.execute(
         select(TaskDispatch)
         .where(TaskDispatch.team_id == team_id)
+        .options(selectinload(TaskDispatch.task))
+        .order_by(TaskDispatch.sent_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def list_dispatches_for_application(
+    session: AsyncSession, application_id: int
+) -> list[TaskDispatch]:
+    """Личные задания этого участника (Task.is_personal) — для команды бота «Мои
+    задания», доступны и тем, кто ещё не распределён в команду."""
+    result = await session.execute(
+        select(TaskDispatch)
+        .where(TaskDispatch.application_id == application_id)
         .options(selectinload(TaskDispatch.task))
         .order_by(TaskDispatch.sent_at.desc())
     )

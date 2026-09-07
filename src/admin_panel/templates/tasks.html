@@ -49,6 +49,10 @@
                 <p class="field-hint">Опционально — если задан, задание появится колонкой в табличном /leaderboard бота.</p>
             </div>
 
+            <label class="checkbox-row" style="margin-bottom: 0.9rem;">
+                <input type="checkbox" name="is_personal" value="true"> Личное задание (каждому участнику отдельно, не команде)
+            </label>
+
             <div class="form-field">
                 <label for="task-description">Текст задания для команд</label>
                 <textarea id="task-description" name="description" placeholder="Что нужно сделать и как отчитаться" required></textarea>
@@ -74,6 +78,9 @@
                 <label class="radio-row">
                     <input type="radio" name="criterion" value="global_mission"> {{ icons.svg("globe", 15) }} Глобальная миссия (без кнопки «Сдать», с напоминаниями)
                 </label>
+                <label class="radio-row">
+                    <input type="radio" name="criterion" value="global_mission_submit"> {{ icons.svg("globe", 15) }} Глобальная миссия со сдачей (с кнопкой «Сдать», баллы — вручную)
+                </label>
             </div>
 
             <div class="conditional-field conditional-field--pass_fail form-field" style="max-width: 220px;">
@@ -95,7 +102,7 @@
                     <input type="number" id="rank-points-3" name="rank_points_3" value="10" min="0">
                 </div>
             </div>
-            <p class="field-hint" style="margin-bottom: 0.9rem;">Вручную — бот только собирает вложения (доказательства), баллы за каждую команду проставляются на странице задания после сдачи. Глобальная миссия — рассылается один раз без кнопки «Сдать», команде ежедневно приходит напоминание, баллы проставляет админ здесь же в конце (после дедлайна).</p>
+            <p class="field-hint" style="margin-bottom: 0.9rem;">Вручную — бот только собирает вложения (доказательства), баллы за каждую команду проставляются на странице задания после сдачи. Глобальная миссия — рассылается один раз без кнопки «Сдать», команде ежедневно приходит напоминание, баллы проставляет админ здесь же в конце (после дедлайна). Глобальная миссия со сдачей — то же самое, но с кнопкой «Сдать» (например, финальное видео) — команда/участник сдаёт итог до дедлайна, баллы всё равно вручную.</p>
 
             <p class="field-group-label">Когда отправлять</p>
             <div class="audience-picker">
@@ -198,11 +205,12 @@
                 {% for task in tasks %}
                 <tr>
                     <td>
-                        {{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}<br>
+                        {{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}{% if task.is_personal %} <span class="muted">(личное)</span>{% endif %}<br>
                         <span class="muted">
                             {% if task.criterion.value == "pass_fail" %}Выполнил/не выполнил — {{ task.pass_points }} б.
                             {% elif task.criterion.value == "speed_rank" %}Кто первым — {{ task.rank_points | join("/") }}
                             {% elif task.criterion.value == "global_mission" %}Глобальная миссия
+                            {% elif task.criterion.value == "global_mission_submit" %}Глобальная миссия со сдачей
                             {% else %}Вручную
                             {% endif %}
                         </span>

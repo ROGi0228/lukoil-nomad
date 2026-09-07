@@ -24,12 +24,12 @@ from src.db.repositories.task_repository import (
     claim_submission_slot,
     count_completed_dispatches_for_task,
     count_submission_items,
+    dispatch_contacts,
     get_dispatch,
     get_task,
     list_dispatch_messages_for_dispatch,
     points_for_completion_rank,
 )
-from src.db.repositories.team_repository import list_team_member_contacts
 from src.db.repositories.user_repository import get_or_create_user
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
@@ -157,11 +157,9 @@ async def _finalize_completion(
     dispatch.completed_at = now
     dispatch.completed_by_user_id = user_id
     dispatch.points_awarded = points
-
-    team_id = dispatch.team_id
     await db_session.commit()
 
-    contacts = await list_team_member_contacts(db_session, team_id)
+    contacts = await dispatch_contacts(db_session, dispatch)
     for telegram_id, language in contacts:
         member_lang = resolve_lang(language)
         if task.criterion == TaskCriterion.PASS_FAIL:

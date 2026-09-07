@@ -1147,6 +1147,10 @@ h1, h2, h3 {
     display: none;
 }
 
+.task-form:has(input[name="criterion"][value="global_mission_submit"]:checked) .conditional-field--pass_fail {
+    display: none;
+}
+
 .task-form:has(input[name="criterion"][value="speed_rank"]:checked) .conditional-field--speed_rank {
     display: block;
 }

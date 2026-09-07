@@ -10,9 +10,13 @@ from src.bot.notify import notify_user
 from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.db.models.task import Task
+from src.db.models.task_dispatch import TaskDispatch
+from src.db.repositories.application_repository import list_all_applications
 from src.db.repositories.task_repository import (
     add_dispatch_message,
     create_dispatch,
+    dispatch_contacts,
+    get_dispatch_for_application,
     get_dispatch_for_team,
     list_active_global_mission_dispatches,
     list_completed_dispatches_for_task,
@@ -21,7 +25,7 @@ from src.db.repositories.task_repository import (
     list_due_tasks_for_dispatch,
     list_trigger_based_tasks,
 )
-from src.db.repositories.team_repository import list_all_team_ids, list_team_member_contacts
+from src.db.repositories.team_repository import list_all_team_ids
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
 from src.shared.enums import TaskCriterion
@@ -36,12 +40,13 @@ REMINDER_MINUTES_BEFORE = 15
 GLOBAL_MISSION_REMINDER_HOUR_UTC = 5
 
 
-async def dispatch_to_team(
-    session: AsyncSession, bot: Bot, task: Task, team_id: int, sent_at: dt.datetime
+async def _send_dispatch(
+    session: AsyncSession,
+    bot: Bot,
+    task: Task,
+    dispatch: TaskDispatch,
+    contacts: list[tuple[int, str | None]],
 ) -> None:
-    dispatch = await create_dispatch(session, task_id=task.id, team_id=team_id, sent_at=sent_at)
-    contacts = await list_team_member_contacts(session, team_id)
-
     attachment_url = None
     if task.attachment_photo_key or task.attachment_video_key:
         storage = S3Storage(get_settings())
@@ -96,25 +101,54 @@ async def dispatch_to_team(
             )
 
 
+async def dispatch_to_team(
+    session: AsyncSession, bot: Bot, task: Task, team_id: int, sent_at: dt.datetime
+) -> None:
+    dispatch = await create_dispatch(session, task_id=task.id, team_id=team_id, sent_at=sent_at)
+    contacts = await dispatch_contacts(session, dispatch)
+    await _send_dispatch(session, bot, task, dispatch, contacts)
+
+
+async def dispatch_to_participant(
+    session: AsyncSession, bot: Bot, task: Task, application_id: int, sent_at: dt.datetime
+) -> None:
+    """Личное задание (Task.is_personal) — тот же диспетч/сдача/баллы, что и у
+    командного, просто на одного конкретного зарегистрированного участника вместо
+    команды (см. TaskDispatch.application_id)."""
+    dispatch = await create_dispatch(
+        session, task_id=task.id, application_id=application_id, sent_at=sent_at
+    )
+    contacts = await dispatch_contacts(session, dispatch)
+    await _send_dispatch(session, bot, task, dispatch, contacts)
+
+
 async def dispatch_due_tasks(ctx: dict[str, Any]) -> None:
-    """Cron-джоб: рассылает задания с фиксированным временем отправки всем командам сразу."""
+    """Cron-джоб: рассылает задания с фиксированным временем отправки — всем командам
+    сразу, а личные (Task.is_personal) — каждому зарегистрированному участнику лично,
+    независимо от того, распределён он в команду или нет."""
     bot: Bot = ctx["bot"]
     now = dt.datetime.now(dt.UTC)
 
     async with async_session_factory() as session:
         due_tasks = await list_due_tasks_for_dispatch(session, now)
         for task in due_tasks:
-            team_ids = await list_all_team_ids(session)
-            for team_id in team_ids:
-                await dispatch_to_team(session, bot, task, team_id, now)
+            if task.is_personal:
+                applications = await list_all_applications(session)
+                for application in applications:
+                    await dispatch_to_participant(session, bot, task, application.id, now)
+            else:
+                team_ids = await list_all_team_ids(session)
+                for team_id in team_ids:
+                    await dispatch_to_team(session, bot, task, team_id, now)
             task.dispatched = True
         await session.commit()
 
 
 async def dispatch_trigger_based_tasks(ctx: dict[str, Any]) -> None:
-    """Cron-джоб: задания-триггеры — команда получает задание через N минут после того,
-    как ЭТА ЖЕ команда выполнит другое задание. Раз на команду; идемпотентность —
-    уникальность (task_id, team_id) в TaskDispatch, проверяем перед созданием."""
+    """Cron-джоб: задания-триггеры — получатель получает задание через N минут после
+    того, как ОН ЖЕ (команда или, для личных заданий, конкретный участник) выполнит
+    другое задание. Идемпотентность — уникальность (task_id, team_id)/(task_id,
+    application_id) в TaskDispatch, проверяем перед созданием."""
     bot: Bot = ctx["bot"]
     now = dt.datetime.now(dt.UTC)
 
@@ -131,10 +165,21 @@ async def dispatch_trigger_based_tasks(ctx: dict[str, Any]) -> None:
                 )
                 if ready_at > now:
                     continue
-                existing = await get_dispatch_for_team(session, task.id, trigger_dispatch.team_id)
-                if existing is not None:
-                    continue
-                await dispatch_to_team(session, bot, task, trigger_dispatch.team_id, now)
+                if trigger_dispatch.team_id is not None:
+                    existing = await get_dispatch_for_team(session, task.id, trigger_dispatch.team_id)
+                    if existing is not None:
+                        continue
+                    await dispatch_to_team(session, bot, task, trigger_dispatch.team_id, now)
+                else:
+                    assert trigger_dispatch.application_id is not None
+                    existing = await get_dispatch_for_application(
+                        session, task.id, trigger_dispatch.application_id
+                    )
+                    if existing is not None:
+                        continue
+                    await dispatch_to_participant(
+                        session, bot, task, trigger_dispatch.application_id, now
+                    )
         await session.commit()
 
 
@@ -150,7 +195,7 @@ async def send_deadline_reminders(ctx: dict[str, Any]) -> None:
             task = dispatch.task
             assert task.deadline_at is not None
             dispatch.reminder_sent = True
-            contacts = await list_team_member_contacts(session, dispatch.team_id)
+            contacts = await dispatch_contacts(session, dispatch)
             for telegram_id, language in contacts:
                 lang = resolve_lang(language)
                 text = t(
@@ -178,7 +223,7 @@ async def send_global_mission_reminders(ctx: dict[str, Any]) -> None:
         active = await list_active_global_mission_dispatches(session, now)
         for dispatch in active:
             task = dispatch.task
-            contacts = await list_team_member_contacts(session, dispatch.team_id)
+            contacts = await dispatch_contacts(session, dispatch)
             for telegram_id, language in contacts:
                 lang = resolve_lang(language)
                 text = t(
@@ -198,7 +243,7 @@ async def apply_deadline_penalties(ctx: dict[str, Any]) -> None:
             task = dispatch.task
             dispatch.penalty_applied = True
             dispatch.points_awarded = -task.penalty_points
-            contacts = await list_team_member_contacts(session, dispatch.team_id)
+            contacts = await dispatch_contacts(session, dispatch)
             for telegram_id, language in contacts:
                 lang = resolve_lang(language)
                 text = t(lang, "task_penalty", title=task.title, points=task.penalty_points)

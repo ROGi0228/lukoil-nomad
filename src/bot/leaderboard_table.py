@@ -80,6 +80,9 @@ def build_leaderboard_matrix(
     for d in dispatches:
         code = d.task.short_code
         if code:
+            # list_dispatches_with_short_code уже отфильтровала личные диспетчи
+            # (team_id IS NULL) на уровне запроса — это всегда командный диспетч.
+            assert d.team_id is not None
             by_team.setdefault(d.team_id, {})[code] = d
 
     def cell_value(team_id: int, column: _Column) -> str:

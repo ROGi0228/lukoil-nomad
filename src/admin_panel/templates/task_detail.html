@@ -10,13 +10,15 @@
 {% if not task.send_at and not task.trigger_task_id %}
 <form method="post" action="/tasks/{{ task.id }}/dispatch-now" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if not task.is_personal %}
     <select name="team_id" style="margin-right: 0.4rem;">
         <option value="">Всем командам</option>
         {% for team in teams %}
         <option value="{{ team.id }}">{{ team.name }}</option>
         {% endfor %}
     </select>
-    <button type="submit" class="action-button action-button--approve">{{ icons.svg("send", 15) }} Отправить сейчас</button>
+    {% endif %}
+    <button type="submit" class="action-button action-button--approve">{{ icons.svg("send", 15) }} Отправить сейчас{% if task.is_personal %} всем участникам{% endif %}</button>
 </form>
 {% endif %}
 {% if message_count %}
@@ -43,17 +45,26 @@
     {% endif %}
     &nbsp;·&nbsp; Дедлайн: {% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}без дедлайна{% endif %}
     {% if task.is_daily %}<span class="status-badge status-badge--waiting">Задание дня</span>{% endif %}
+    {% if task.is_personal %}<span class="status-badge status-badge--waiting">Личное задание</span>{% endif %}
 </p>
 <p class="current-status">
     {{ icons.svg("trophy", 14) }}
     {% if task.criterion.value == "pass_fail" %}Критерий: выполнил/не выполнил — {{ task.pass_points }} баллов
     {% elif task.criterion.value == "speed_rank" %}Критерий: кто первым — {{ task.rank_points | join(" / ") }} баллов за 1/2/3 место
     {% elif task.criterion.value == "global_mission" %}Критерий: глобальная миссия — без кнопки «Сдать», баллы координатор проставляет в конце
+    {% elif task.criterion.value == "global_mission_submit" %}Критерий: глобальная миссия со сдачей — с кнопкой «Сдать», баллы координатор проставляет в конце (решение жюри)
     {% else %}Критерий: вручную — баллы проставляются координатором по каждой команде ниже
     {% endif %}
 </p>
 {% if task.trigger_task_id %}
-<p class="total-count">{{ icons.svg("users", 13) }} Разослано {{ dispatches | length }} из {{ total_teams }} команд (по мере выполнения ими триггера)</p>
+<p class="total-count">
+    {{ icons.svg("users", 13) }}
+    {% if task.is_personal %}
+    Разослано {{ dispatches | length }} из {{ total_applications }} участников (по мере выполнения ими триггера)
+    {% else %}
+    Разослано {{ dispatches | length }} из {{ total_teams }} команд (по мере выполнения ими триггера)
+    {% endif %}
+</p>
 {% endif %}
 
 {% if attachment_url %}
@@ -73,12 +84,16 @@
     <div class="table-scroll">
     <table class="applications-table">
         <thead>
-            <tr><th>Команда</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th><th>Сдача</th></tr>
+            <tr><th>{% if task.is_personal %}Участник{% else %}Команда{% endif %}</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th><th>Сдача</th></tr>
         </thead>
         <tbody>
             {% for d in dispatches %}
             <tr>
+                {% if d.team_id %}
                 <td><a href="/teams/{{ d.team_id }}" class="table-link">{{ d.team.name }}</a></td>
+                {% else %}
+                <td><a href="/applications/{{ d.application_id }}" class="table-link">{{ d.application.full_name }}</a></td>
+                {% endif %}
                 <td>{{ d.sent_at | format_dt }}</td>
                 <td>
                     {% if d.completed_at %}{{ d.completed_at | format_dt }}
@@ -88,7 +103,7 @@
                     {% endif %}
                 </td>
                 <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">
-                    {% if task.criterion.value in ("manual", "global_mission") %}
+                    {% if task.criterion.value in ("manual", "global_mission", "global_mission_submit") %}
                     <form method="post" action="/tasks/{{ task.id }}/dispatch/{{ d.id }}/score" class="form-row" style="align-items: flex-end; flex-wrap: nowrap;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="number" name="points" value="{{ d.points_awarded if d.points_awarded is not none else 0 }}" style="width: 80px;">

@@ -13,6 +13,7 @@ from src.db.models.application import Application
 from src.db.models.task_dispatch import TaskDispatch
 from src.db.repositories.application_repository import get_application_by_user_id
 from src.db.repositories.task_repository import (
+    list_dispatches_for_application,
     list_dispatches_for_team,
     list_dispatches_with_short_code,
 )
@@ -29,14 +30,25 @@ def _format_dt(value: dt.datetime) -> str:
     return value.astimezone(_ALMATY_TZ).strftime("%d.%m.%Y %H:%M")
 
 
-async def _require_team(
+async def _require_application(
     message: Message, db_session: AsyncSession, lang: Lang, user_id: int
 ) -> Application | None:
-    """Общая проверка для /tasks, /points, /leaderboard — все три команды имеют
-    смысл только для участника, уже распределённого в команду."""
+    """Общая проверка на "зарегистрирован ли вообще" — для /tasks, у которой теперь
+    могут быть личные задания даже до распределения в команду."""
     application = await get_application_by_user_id(db_session, user_id)
     if application is None:
         await message.answer(t(lang, "no_application_yet"))
+        return None
+    return application
+
+
+async def _require_team(
+    message: Message, db_session: AsyncSession, lang: Lang, user_id: int
+) -> Application | None:
+    """Для /points и /leaderboard — они по смыслу командные, личные задания сюда не
+    попадают (не входят в счёт команды, см. get_team_score)."""
+    application = await _require_application(message, db_session, lang, user_id)
+    if application is None:
         return None
     if application.team is None:
         await message.answer(t(lang, "status_registered_no_team"))
@@ -90,11 +102,13 @@ async def cmd_my_tasks(message: Message, db_session: AsyncSession) -> None:
     user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
     lang = resolve_lang(user.language)
 
-    application = await _require_team(message, db_session, lang, user.id)
-    if application is None or application.team is None:
+    application = await _require_application(message, db_session, lang, user.id)
+    if application is None:
         return
 
-    dispatches = await list_dispatches_for_team(db_session, application.team.id)
+    dispatches = list(await list_dispatches_for_application(db_session, application.id))
+    if application.team is not None:
+        dispatches += await list_dispatches_for_team(db_session, application.team.id)
     if not dispatches:
         await message.answer(t(lang, "my_tasks_empty"))
         return
@@ -103,7 +117,12 @@ async def cmd_my_tasks(message: Message, db_session: AsyncSession) -> None:
     pending = [d for d in dispatches if not _is_resolved(d)]
 
     if resolved:
-        lines = [t(lang, "my_tasks_header", team_name=application.team.name)]
+        header = (
+            t(lang, "my_tasks_header", team_name=application.team.name)
+            if application.team is not None
+            else t(lang, "my_tasks_header_personal")
+        )
+        lines = [header]
         lines.extend(_resolved_task_line(lang, d) for d in resolved)
         await message.answer("\n".join(lines))
 

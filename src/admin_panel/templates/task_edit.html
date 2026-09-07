@@ -24,6 +24,10 @@
             <p class="field-hint">Опционально — если задан, задание появится колонкой в табличном /leaderboard бота.</p>
         </div>
 
+        <label class="checkbox-row" style="margin-bottom: 0.9rem;">
+            <input type="checkbox" name="is_personal" value="true" {% if task.is_personal %}checked{% endif %}> Личное задание (каждому участнику отдельно, не команде)
+        </label>
+
         <div class="form-field">
             <label for="task-description">Текст задания для команд</label>
             <textarea id="task-description" name="description" required>{{ task.description }}</textarea>
@@ -62,6 +66,9 @@
             </label>
             <label class="radio-row">
                 <input type="radio" name="criterion" value="global_mission" {% if task.criterion.value == "global_mission" %}checked{% endif %}> {{ icons.svg("globe", 15) }} Глобальная миссия (без кнопки «Сдать», с напоминаниями)
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="criterion" value="global_mission_submit" {% if task.criterion.value == "global_mission_submit" %}checked{% endif %}> {{ icons.svg("globe", 15) }} Глобальная миссия со сдачей (с кнопкой «Сдать», баллы — вручную)
             </label>
         </div>
 

@@ -32,6 +32,12 @@ class Task(Base, TimestampMixin):
     # миссия) не участвует в таблице по дням, только в общем счёте команды.
     short_code: Mapped[str | None] = mapped_column(String(20))
 
+    # Личное задание (например, «зарегистрируйтесь в бонусном приложении» до того,
+    # как участников распределили по командам) — рассылается каждому
+    # зарегистрированному участнику отдельно (TaskDispatch.application_id), а не
+    # командам (TaskDispatch.team_id). См. dispatch_to_participant в task_scheduler.py.
+    is_personal: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     # когда воркер должен разослать задание всем командам разом. NULL — задание не на
     # фиксированное время, а по триггеру (см. trigger_task_id) — отправляется каждой
     # команде индивидуально, когда наступит её момент.
@@ -52,7 +58,7 @@ class Task(Base, TimestampMixin):
             TaskCriterion,
             native_enum=False,
             validate_strings=True,
-            length=20,
+            length=32,
             values_callable=lambda enum_cls: [member.value for member in enum_cls],
         ),
         default=TaskCriterion.PASS_FAIL,
