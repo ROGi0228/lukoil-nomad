@@ -26,6 +26,7 @@ from src.db.repositories.task_repository import (
     count_submission_items,
     get_dispatch,
     get_task,
+    list_dispatch_messages_for_dispatch,
     points_for_completion_rank,
 )
 from src.db.repositories.team_repository import list_team_member_contacts
@@ -46,18 +47,19 @@ ALBUM_ACK_DEBOUNCE_SECONDS = 1.5
 _pending_album_acks: dict[str, asyncio.Task[None]] = {}
 
 
-async def _track_ack_message(state: FSMContext, message_id: int) -> None:
-    """Запоминает id сообщения-квитанции ("Принято... [Готово]"), чтобы удалить его
-    при нажатии «Готово» — иначе в чате копятся неактуальные кнопки (особенно
+async def _track_cleanup_message(state: FSMContext, message_id: int) -> None:
+    """Запоминает id промежуточного служебного сообщения сдачи (подсказка "прикрепите
+    вложения", квитанция "Принято... [Готово]"), чтобы удалить его при нажатии
+    «Готово» — иначе в чате копятся неактуальные кнопки и подсказки (особенно
     заметно, если вложения присланы несколькими отдельными сообщениями — у каждого
     своя квитанция со своей кнопкой). Список, не одно значение — их может быть
     несколько; в редком случае одновременной записи можно потерять один id
     (не атомарно), тогда одно сообщение просто не удалится — не страшно, это чисто
     косметическая уборка, а не начисление баллов."""
     data = await state.get_data()
-    ack_ids: list[int] = list(data.get("ack_message_ids", []))
-    ack_ids.append(message_id)
-    await state.update_data(ack_message_ids=ack_ids)
+    ids: list[int] = list(data.get("cleanup_message_ids", []))
+    ids.append(message_id)
+    await state.update_data(cleanup_message_ids=ids)
 
 
 async def _send_submission_ack(bot: Bot, chat_id: int, lang: Lang, dispatch_id: int, state: FSMContext) -> None:
@@ -68,7 +70,7 @@ async def _send_submission_ack(bot: Bot, chat_id: int, lang: Lang, dispatch_id: 
         t(lang, "task_submission_item_added", count=count),
         reply_markup=task_submission_done_keyboard(lang),
     )
-    await _track_ack_message(state, sent.message_id)
+    await _track_cleanup_message(state, sent.message_id)
 
 
 async def _debounced_album_ack(
@@ -103,8 +105,8 @@ def _ack_submission(
     return task
 
 
-async def _cleanup_ack_messages(bot: Bot, chat_id: int, ack_message_ids: list[int]) -> None:
-    for message_id in ack_message_ids:
+async def _cleanup_messages(bot: Bot, chat_id: int, message_ids: list[int]) -> None:
+    for message_id in message_ids:
         await try_delete_message(bot, chat_id, message_id)
 
 
@@ -180,6 +182,15 @@ async def _finalize_completion(
             text = t(member_lang, "task_completed_manual", title=task.title)
         await notify_user(bot, telegram_id, text)
 
+    # Кнопка «Сдать задание» в исходной рассылке этого диспетча (у всех участников
+    # команды, не только у того, кто сдавал) теперь бессмысленна — задание уже
+    # сдано. Чистим, чтобы не путала команду и не копилась хламом в чате.
+    dispatch_messages = await list_dispatch_messages_for_dispatch(db_session, dispatch.id)
+    for dispatch_message in dispatch_messages:
+        await try_delete_message(bot, dispatch_message.telegram_id, dispatch_message.message_id)
+        await db_session.delete(dispatch_message)
+    await db_session.commit()
+
     return True
 
 
@@ -222,7 +233,8 @@ async def on_task_done(
 
     await state.update_data(dispatch_id=dispatch_id)
     await state.set_state(TaskSubmissionStates.waiting_submission)
-    await callback.message.answer(t(lang, "task_submission_prompt", title=task.title))
+    sent = await callback.message.answer(t(lang, "task_submission_prompt", title=task.title))
+    await _track_cleanup_message(state, sent.message_id)
 
 
 @router.message(TaskSubmissionStates.waiting_submission, _not_a_command, F.photo | F.video | F.text)
@@ -356,18 +368,19 @@ async def on_task_submission_done(
 
     data = await state.get_data()
     dispatch_id = data.get("dispatch_id")
-    # Все квитанции ("Принято... [Готово]"), включая ту, что нажали именно сейчас —
-    # свою кнопку добавляем на всякий случай явно, чтобы гонка при записи в state
-    # (см. _track_ack_message) не оставила несведённой хотя бы её.
-    ack_message_ids: set[int] = set(data.get("ack_message_ids", []))
-    ack_message_ids.add(callback.message.message_id)
+    # Подсказка "прикрепите вложения" + все квитанции ("Принято... [Готово]"),
+    # включая ту, что нажали именно сейчас — свою кнопку добавляем на всякий случай
+    # явно, чтобы гонка при записи в state (см. _track_cleanup_message) не оставила
+    # несведённой хотя бы её.
+    cleanup_message_ids: set[int] = set(data.get("cleanup_message_ids", []))
+    cleanup_message_ids.add(callback.message.message_id)
     chat_id = callback.message.chat.id
     await state.clear()
     if dispatch_id is None:
         return
 
     async def reply(text: str) -> None:
-        await _cleanup_ack_messages(bot, chat_id, list(ack_message_ids))
+        await _cleanup_messages(bot, chat_id, list(cleanup_message_ids))
         await bot.send_message(chat_id, text)
 
     dispatch = await get_dispatch(db_session, dispatch_id)

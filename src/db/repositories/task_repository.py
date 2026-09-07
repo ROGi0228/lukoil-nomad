@@ -349,3 +349,16 @@ async def list_dispatch_messages_for_task(
         .where(TaskDispatch.task_id == task_id)
     )
     return list(result.scalars().all())
+
+
+async def list_dispatch_messages_for_dispatch(
+    session: AsyncSession, dispatch_id: int
+) -> list[TaskDispatchMessage]:
+    """Копии рассылки этого конкретного диспетча у всех участников команды (не всего
+    задания у всех команд) — чтобы отозвать их, когда команда сдала задание: кнопка
+    «Сдать задание» в них становится неактуальной для всех, не только для того, кто
+    нажал «Готово»."""
+    result = await session.execute(
+        select(TaskDispatchMessage).where(TaskDispatchMessage.dispatch_id == dispatch_id)
+    )
+    return list(result.scalars().all())
