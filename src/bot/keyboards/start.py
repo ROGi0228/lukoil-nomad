@@ -20,15 +20,10 @@ def language_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def start_keyboard(lang: Lang, settings: Settings) -> InlineKeyboardMarkup:
-    buttons: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text=t(lang, "btn_join"), callback_data=JOIN_CALLBACK)]
-    ]
-    if settings.news_channel_url:
-        buttons.append(
-            [InlineKeyboardButton(text=t(lang, "btn_channel"), url=settings.news_channel_url)]
-        )
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+def start_keyboard(lang: Lang) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t(lang, "btn_join"), callback_data=JOIN_CALLBACK)]]
+    )
 
 
 def registration_closed_keyboard(lang: Lang, settings: Settings) -> InlineKeyboardMarkup:

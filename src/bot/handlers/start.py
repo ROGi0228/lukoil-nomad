@@ -10,7 +10,6 @@ from src.bot.keyboards.start import (
     language_keyboard,
     start_keyboard,
 )
-from src.core.config import Settings
 from src.core.logging import get_logger
 from src.db.repositories.user_repository import get_or_create_user
 
@@ -28,7 +27,7 @@ def _bilingual_intro_text() -> str:
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, db_session: AsyncSession, settings: Settings) -> None:
+async def cmd_start(message: Message, db_session: AsyncSession) -> None:
     if message.from_user is None:
         return
 
@@ -40,7 +39,7 @@ async def cmd_start(message: Message, db_session: AsyncSession, settings: Settin
         return
 
     lang = resolve_lang(user.language)
-    await message.answer(t(lang, "welcome"), reply_markup=start_keyboard(lang, settings))
+    await message.answer(t(lang, "welcome"), reply_markup=start_keyboard(lang))
 
 
 @router.message(Command("language"))
@@ -56,9 +55,7 @@ async def cmd_language(message: Message, db_session: AsyncSession) -> None:
 
 
 @router.callback_query(F.data.in_({LANG_RU_CALLBACK, LANG_KK_CALLBACK}))
-async def on_language_selected(
-    callback: CallbackQuery, db_session: AsyncSession, settings: Settings
-) -> None:
+async def on_language_selected(callback: CallbackQuery, db_session: AsyncSession) -> None:
     await callback.answer()
     if callback.from_user is None or callback.message is None:
         return
@@ -70,4 +67,4 @@ async def on_language_selected(
     user.language = lang
     await db_session.commit()
 
-    await callback.message.answer(t(lang, "welcome"), reply_markup=start_keyboard(lang, settings))
+    await callback.message.answer(t(lang, "welcome"), reply_markup=start_keyboard(lang))
