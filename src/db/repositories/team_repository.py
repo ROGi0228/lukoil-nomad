@@ -46,17 +46,32 @@ async def list_all_team_ids(session: AsyncSession) -> list[int]:
 
 
 async def get_team_score(session: AsyncSession, team_id: int) -> int:
+    """Командные диспетчи + ручные корректировки + личные диспетчи ТЕКУЩИХ участников
+    команды (Task.is_personal — сданы ещё до распределения по командам, но должны
+    засчитываться в счёт той команды, куда участник в итоге попал). Считается по
+    актуальному Application.team_id на момент вызова, а не "замороженной" на
+    момент сдачи команде — если участника позже переведут в другую команду, его
+    личные баллы поедут вместе с ним."""
     dispatch_result = await session.execute(
         select(func.coalesce(func.sum(TaskDispatch.points_awarded), 0)).where(
             TaskDispatch.team_id == team_id
         )
+    )
+    personal_result = await session.execute(
+        select(func.coalesce(func.sum(TaskDispatch.points_awarded), 0))
+        .join(Application, TaskDispatch.application_id == Application.id)
+        .where(Application.team_id == team_id)
     )
     adjustment_result = await session.execute(
         select(func.coalesce(func.sum(TeamPointAdjustment.points), 0)).where(
             TeamPointAdjustment.team_id == team_id
         )
     )
-    return (dispatch_result.scalar_one() or 0) + (adjustment_result.scalar_one() or 0)
+    return (
+        (dispatch_result.scalar_one() or 0)
+        + (personal_result.scalar_one() or 0)
+        + (adjustment_result.scalar_one() or 0)
+    )
 
 
 async def add_point_adjustment(
