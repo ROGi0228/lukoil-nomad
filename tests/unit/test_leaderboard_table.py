@@ -13,22 +13,24 @@ def _dispatch(team_id: int, short_code: str, points: int | None) -> TaskDispatch
     return TaskDispatch(team_id=team_id, points_awarded=points, task=Task(short_code=short_code))
 
 
-def test_single_day_matches_customer_mockup() -> None:
+def test_single_day_short_labels() -> None:
     """1.1 = 30, 1.2 = 0 (ещё единственный день — весь он "сегодня", колонок за
-    прошлые дни нет)."""
+    прошлые дни нет). Подпись колонки — без префикса дня ("1"/"2", не "1.1"/"1.2")
+    — короче, чтобы таблица влезала в ширину телефона."""
     team = Team(id=1, name="Барсы")
     dispatches = [_dispatch(1, "1.1", 30), _dispatch(1, "1.2", 0)]
 
     matrix = build_leaderboard_matrix(dispatches=dispatches, teams=[team], scores={1: 30}, own_team_id=None)
 
-    assert matrix.headers == ["Команда", "1.1", "1.2", "Итого"]
+    assert matrix.headers == ["Команда", "1", "2", "Итого"]
     assert matrix.rows == [["Барсы", "30", "0", "30"]]
     assert matrix.own_flags == [False]
 
 
 def test_previous_day_collapses_into_one_column() -> None:
     """День 1 полностью в прошлом (30 баллов суммарно) — сворачивается в одну
-    колонку "1 день"; день 2 — текущий, его задания идут отдельными колонками."""
+    компактную колонку "Д1"; день 2 — текущий, его задания идут отдельными
+    колонками с короткими подписями без префикса дня."""
     team = Team(id=1, name="Барсы")
     dispatches = [
         _dispatch(1, "1.1", 20),
@@ -39,7 +41,7 @@ def test_previous_day_collapses_into_one_column() -> None:
 
     matrix = build_leaderboard_matrix(dispatches=dispatches, teams=[team], scores={1: 50}, own_team_id=None)
 
-    assert matrix.headers == ["Команда", "1 день", "2.1", "2.2", "Итого"]
+    assert matrix.headers == ["Команда", "Д1", "1", "2", "Итого"]
     assert matrix.rows == [["Барсы", "30", "15", "5", "50"]]
 
 
@@ -52,7 +54,7 @@ def test_numeric_day_sort_not_lexicographic() -> None:
     matrix = build_leaderboard_matrix(dispatches=dispatches, teams=[team], scores={1: 3}, own_team_id=None)
 
     # день 10 — самый поздний, значит "сегодня"; день 2 сворачивается в колонку
-    assert matrix.headers == ["Команда", "2 день", "10.1", "Итого"]
+    assert matrix.headers == ["Команда", "Д2", "1", "Итого"]
 
 
 def test_missing_dispatch_for_task_shown_as_dash() -> None:
@@ -114,8 +116,8 @@ def test_long_team_name_truncated() -> None:
     team = Team(id=1, name="Очень Длинное Название Команды")
     matrix = build_leaderboard_matrix(dispatches=[], teams=[team], scores={1: 0}, own_team_id=None)
 
-    assert matrix.rows[0][0] == "Очень Длинное…"
-    assert len(matrix.rows[0][0]) == 14
+    assert matrix.rows[0][0] == "Очень Дли…"
+    assert len(matrix.rows[0][0]) == 10
 
 
 def test_format_without_task_columns_has_no_tasks_label() -> None:
@@ -137,24 +139,42 @@ def test_format_without_task_columns_has_no_tasks_label() -> None:
 
 
 def test_format_with_task_columns_adds_centered_tasks_label() -> None:
+    """5 узких колонок дают достаточно суммарной ширины, чтобы подпись "Задания"
+    (7 символов) реально поместилась и была показана."""
     team = Team(id=1, name="Барсы")
-    dispatches = [_dispatch(1, "1.1", 30), _dispatch(1, "1.2", 0)]
-    matrix = build_leaderboard_matrix(dispatches=dispatches, teams=[team], scores={1: 30}, own_team_id=None)
+    dispatches = [_dispatch(1, f"1.{i}", 10) for i in range(1, 6)]
+    matrix = build_leaderboard_matrix(dispatches=dispatches, teams=[team], scores={1: 50}, own_team_id=None)
 
     formatted = format_leaderboard_matrix(matrix)
 
     assert len(formatted.header_lines) == 2
     label_line, columns_line = formatted.header_lines
     assert label_line.strip() == "Задания"
-    # Подпись помещается точно над блоком колонок 1.1/1.2 в строке с кодами — не
-    # заезжает ни на "Команда", ни на "Итого".
+    # Подпись помещается где-то между концом "Команда" и началом "Итого" — не
+    # заезжает ни на одну из этих двух колонок. Не ищем по цифрам колонок заданий:
+    # при выравнивании по правому краю сама цифра может стоять в конце узкого
+    # слота колонки, а не в его начале, что не годится ориентиром.
+    columns_team_end = columns_line.index("Команда") + len("Команда")
+    columns_total_start = columns_line.rindex("Итого")
     label_start = label_line.index("Задания")
     label_end = label_start + len("Задания")
-    columns_start = columns_line.index("1.1")
-    columns_end = columns_line.index("Итого")
-    assert columns_start <= label_start
-    assert label_end <= columns_end
+    assert columns_team_end <= label_start
+    assert label_end <= columns_total_start
     assert len(label_line) <= len(columns_line)
+
+
+def test_format_omits_tasks_label_when_columns_too_narrow() -> None:
+    """Всего 2 узкие колонки — суммарная ширина меньше самой подписи "Задания".
+    Раньше подпись всё равно рисовалась и наезжала на "Итого"; теперь просто не
+    показывается, лишь бы не выглядеть криво."""
+    team = Team(id=1, name="Барсы")
+    dispatches = [_dispatch(1, "1.1", 30), _dispatch(1, "1.2", 0)]
+    matrix = build_leaderboard_matrix(dispatches=dispatches, teams=[team], scores={1: 30}, own_team_id=None)
+
+    formatted = format_leaderboard_matrix(matrix)
+
+    assert len(formatted.header_lines) == 1
+    assert "Задания" not in formatted.header_lines[0]
 
 
 def test_chunk_leaderboard_messages_repeats_full_header_when_split() -> None:

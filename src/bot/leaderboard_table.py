@@ -6,9 +6,11 @@ from html import escape
 from src.db.models.task_dispatch import TaskDispatch
 from src.db.models.team import Team
 
-# Имя команды в таблице обрезается до этой длины (с "…"), чтобы строка не расползалась
-# на телефоне при большом числе колонок-дней к концу экспедиции.
-TEAM_NAME_MAX_WIDTH = 14
+# Имя команды в таблице обрезается до этой длины (с "…") — таблица целиком должна
+# укладываться в ширину телефона (участники смотрят с телефонов): Telegram на
+# мобильном переносит слишком длинную строку <pre> по словам вместо горизонтальной
+# прокрутки, что полностью ломает моноширинное выравнивание колонок.
+TEAM_NAME_MAX_WIDTH = 10
 
 # Экспедиция укладывается в один Telegram-текст с большим запасом даже в худшем
 # случае (9 дней * ~4 задания + колонка "Итого" на ~25 команд) — порог на всякий
@@ -38,14 +40,22 @@ class _Column:
     key: str  # для колонки дня — сам day_key, для колонки задания — полный short_code
 
 
+def _task_label(code: str) -> str:
+    """Подпись колонки задания ТЕКУЩЕГО дня — без префикса дня (день и так ясен из
+    контекста: подпись "Задания" сверху и то, что это последняя по номеру группа
+    колонок). Экономит по 2 символа на каждую колонку — при 6-7 заданиях в дне это
+    решает, влезает таблица в ширину телефона или переносится и ломает выравнивание."""
+    return code.split(".", 1)[1] if "." in code else code
+
+
 def _build_columns(short_codes: set[str]) -> list[_Column]:
     if not short_codes:
         return []
     day_keys = sorted({_day_key(code) for code in short_codes}, key=_sort_key)
     current_day = day_keys[-1]
-    columns = [_Column(header=f"{day} день", is_today=False, key=day) for day in day_keys[:-1]]
+    columns = [_Column(header=f"Д{day}", is_today=False, key=day) for day in day_keys[:-1]]
     today_codes = sorted((c for c in short_codes if _day_key(c) == current_day), key=_sort_key)
-    columns.extend(_Column(header=code, is_today=True, key=code) for code in today_codes)
+    columns.extend(_Column(header=_task_label(code), is_today=True, key=code) for code in today_codes)
     return columns
 
 
@@ -151,9 +161,13 @@ def format_leaderboard_matrix(matrix: LeaderboardMatrix) -> FormattedLeaderboard
         # "Команда" и "Итого") — ширина 1 (маркер) + 1 (пробел) + колонка "Команда" +
         # 1 (пробел) до начала этого блока совпадает с тем же префиксом в format_row.
         span_width = sum(middle_widths) + (len(middle_widths) - 1)
-        prefix_width = 1 + 1 + widths[0] + 1
-        label_line = " " * prefix_width + TASKS_LABEL.center(span_width)
-        header_lines.append(escape(label_line.rstrip()))
+        # Если колонок слишком мало/узко (span короче самой подписи), str.center()
+        # вернул бы подпись без сужения — она наехала бы на "Итого" правее. Лучше
+        # совсем пропустить подпись, чем показать её криво наложенной на другую колонку.
+        if span_width >= len(TASKS_LABEL):
+            prefix_width = 1 + 1 + widths[0] + 1
+            label_line = " " * prefix_width + TASKS_LABEL.center(span_width)
+            header_lines.append(escape(label_line.rstrip()))
     header_lines.append(format_row(matrix.headers, " "))
 
     body_lines = [
