@@ -9,7 +9,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 from redis.asyncio import Redis
 
-from src.bot.handlers import admin, registration, start, tasks, team_info
+from src.bot.handlers import admin, registration, rules, start, tasks, team_info
 from src.bot.middlewares.db_session import DbSessionMiddleware
 from src.bot.middlewares.logging import LoggingMiddleware
 from src.bot.middlewares.throttling import ThrottlingMiddleware
@@ -35,6 +35,7 @@ def create_dispatcher(settings: Settings, redis: Redis, storage: S3Storage) -> D
 
     dispatcher.include_router(start.router)
     dispatcher.include_router(registration.router)
+    dispatcher.include_router(rules.router)
     dispatcher.include_router(admin.router)
     dispatcher.include_router(tasks.router)
     dispatcher.include_router(team_info.router)
@@ -47,6 +48,7 @@ _USER_COMMANDS = {
         BotCommand(command="tasks", description="Задания моей команды"),
         BotCommand(command="points", description="Баллы моей команды"),
         BotCommand(command="leaderboard", description="Рейтинг команд"),
+        BotCommand(command="rules", description="Правила для участников"),
         BotCommand(command="language", description="Сменить язык"),
     ],
     "kk": [
@@ -54,6 +56,7 @@ _USER_COMMANDS = {
         BotCommand(command="tasks", description="Командамның тапсырмалары"),
         BotCommand(command="points", description="Командамның ұпайлары"),
         BotCommand(command="leaderboard", description="Командалар рейтингі"),
+        BotCommand(command="rules", description="Қатысушыларға арналған ережелер"),
         BotCommand(command="language", description="Тілді өзгерту"),
     ],
 }

@@ -11,6 +11,7 @@ from src.bot.keyboards.registration import (
     PDN_RESTART_CALLBACK,
     pdn_consent_keyboard,
 )
+from src.bot.keyboards.rules import rules_keyboard
 from src.bot.keyboards.start import (
     JOIN_CALLBACK,
     SUBSCRIBE_CHECK_CALLBACK,
@@ -149,6 +150,7 @@ async def on_consent_accept(
 
     await state.clear()
     await callback.message.answer(t(lang, "registration_complete"))
+    await callback.message.answer(t(lang, "rules_intro"), reply_markup=rules_keyboard(lang))
 
 
 @router.callback_query(RegistrationStates.waiting_pdn_consent, F.data == PDN_DECLINE_CALLBACK)
