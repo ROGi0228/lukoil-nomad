@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.i18n import resolve_lang, t
 from src.bot.keyboards.tasks import task_dispatch_keyboard
-from src.bot.notify import notify_user
+from src.bot.notify import notify_user, try_delete_message
 from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.db.models.task import Task
@@ -20,6 +20,7 @@ from src.db.repositories.task_repository import (
     get_dispatch_for_team,
     list_active_global_mission_dispatches,
     list_completed_dispatches_for_task,
+    list_dispatch_messages_for_dispatch,
     list_dispatches_needing_deadline_reminder,
     list_dispatches_needing_penalty_check,
     list_due_tasks_for_dispatch,
@@ -248,4 +249,13 @@ async def apply_deadline_penalties(ctx: dict[str, Any]) -> None:
                 lang = resolve_lang(language)
                 text = t(lang, "task_penalty", title=task.title, points=task.penalty_points)
                 await notify_user(bot, telegram_id, text)
+
+            # Кнопка «Сдать задание» в исходной рассылке этого диспетча теперь
+            # бессмысленна и просрочена — чистим, как и при успешной сдаче
+            # (см. _finalize_completion в src/bot/handlers/tasks.py), чтобы не
+            # висела лишним, уже неактуальным сообщением в чате.
+            dispatch_messages = await list_dispatch_messages_for_dispatch(session, dispatch.id)
+            for dispatch_message in dispatch_messages:
+                await try_delete_message(bot, dispatch_message.telegram_id, dispatch_message.message_id)
+                await session.delete(dispatch_message)
         await session.commit()
