@@ -256,7 +256,14 @@ async def apply_deadline_penalties(ctx: dict[str, Any]) -> None:
             contacts = await dispatch_contacts(session, dispatch)
             for telegram_id, language in contacts:
                 lang = resolve_lang(language)
-                text = t(lang, "task_penalty", title=task.title, points=task.penalty_points)
+                # penalty_points по умолчанию 0 ("не выполнил" — просто 0 баллов, не
+                # штраф) — "минус 0 баллов" звучит странно, отдельная формулировка
+                # без числа. Ненулевой штраф админ включает точечно на задании.
+                text = (
+                    t(lang, "task_penalty_no_points", title=task.title)
+                    if task.penalty_points == 0
+                    else t(lang, "task_penalty", title=task.title, points=task.penalty_points)
+                )
                 await notify_user(bot, telegram_id, text)
 
             # Кнопка «Сдать задание» в исходной рассылке этого диспетча теперь
