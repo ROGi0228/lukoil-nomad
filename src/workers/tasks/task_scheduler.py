@@ -208,7 +208,16 @@ async def send_deadline_reminders(ctx: dict[str, Any]) -> None:
                         "%d.%m.%Y %H:%M"
                     ),
                 )
-                await notify_user(bot, telegram_id, text)
+                sent = await notify_user(bot, telegram_id, text)
+                if sent is not None:
+                    # Тот же трекинг, что и у исходной рассылки (add_dispatch_message) —
+                    # значит существующая очистка по этому dispatch_id (штраф за
+                    # просрочку или успешная сдача, см. apply_deadline_penalties и
+                    # _finalize_completion) заодно уберёт и это напоминание, без
+                    # отдельного кода.
+                    await add_dispatch_message(
+                        session, dispatch_id=dispatch.id, telegram_id=telegram_id, message_id=sent.message_id
+                    )
         await session.commit()
 
 

@@ -49,6 +49,7 @@ _USER_COMMANDS = {
         BotCommand(command="points", description="Баллы моей команды"),
         BotCommand(command="leaderboard", description="Рейтинг команд"),
         BotCommand(command="rules", description="Правила для участников"),
+        BotCommand(command="contacts", description="Контакты организаторов"),
         BotCommand(command="language", description="Сменить язык"),
     ],
     "kk": [
@@ -57,6 +58,7 @@ _USER_COMMANDS = {
         BotCommand(command="points", description="Командамның ұпайлары"),
         BotCommand(command="leaderboard", description="Командалар рейтингі"),
         BotCommand(command="rules", description="Қатысушыларға арналған ережелер"),
+        BotCommand(command="contacts", description="Ұйымдастырушылардың байланыстары"),
         BotCommand(command="language", description="Тілді өзгерту"),
     ],
 }

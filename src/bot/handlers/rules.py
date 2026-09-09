@@ -27,3 +27,16 @@ async def cmd_rules(message: Message, db_session: AsyncSession) -> None:
         return
     user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
     await message.answer(t(resolve_lang(user.language), "rules_full"))
+
+
+@router.message(Command("contacts"))
+async def cmd_contacts(message: Message, db_session: AsyncSession) -> None:
+    """Пункт меню «Контакты организаторов» — справочник по ролям/зонам
+    ответственности, слишком большой для одного сообщения, поэтому "\\x00" в
+    contacts_full режет его на несколько сообщений по категориям (см. i18n.py)."""
+    if message.from_user is None:
+        return
+    user = await get_or_create_user(db_session, message.from_user.id, message.from_user.username)
+    lang = resolve_lang(user.language)
+    for chunk in t(lang, "contacts_full").split("\x00"):
+        await message.answer(chunk)
