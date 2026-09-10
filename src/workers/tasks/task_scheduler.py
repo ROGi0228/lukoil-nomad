@@ -18,7 +18,6 @@ from src.db.repositories.task_repository import (
     dispatch_contacts,
     get_dispatch_for_application,
     get_dispatch_for_team,
-    list_active_global_mission_dispatches,
     list_completed_dispatches_for_task,
     list_dispatch_messages_for_dispatch,
     list_dispatches_needing_deadline_reminder,
@@ -35,10 +34,6 @@ logger = get_logger(__name__)
 
 # За сколько минут до дедлайна напоминать команде, что задание ещё не сдано.
 REMINDER_MINUTES_BEFORE = 15
-
-# Ежедневное напоминание про глобальные миссии (Критерий №3) — 10:00 по Алматы
-# (UTC+5, без перехода на летнее время, см. src/admin_panel/display.py).
-GLOBAL_MISSION_REMINDER_HOUR_UTC = 5
 
 
 async def _send_dispatch(
@@ -219,27 +214,6 @@ async def send_deadline_reminders(ctx: dict[str, Any]) -> None:
                         session, dispatch_id=dispatch.id, telegram_id=telegram_id, message_id=sent.message_id
                     )
         await session.commit()
-
-
-async def send_global_mission_reminders(ctx: dict[str, Any]) -> None:
-    """Cron-джоб (раз в день, GLOBAL_MISSION_REMINDER_HOUR_UTC): напоминает командам
-    про ещё не оценённые глобальные миссии — они рассылаются один раз в начале и
-    живут до финального дедлайна, без кнопки «Сдать», поэтому команде легко про них
-    забыть без периодического напоминания."""
-    bot: Bot = ctx["bot"]
-    now = dt.datetime.now(dt.UTC)
-
-    async with async_session_factory() as session:
-        active = await list_active_global_mission_dispatches(session, now)
-        for dispatch in active:
-            task = dispatch.task
-            contacts = await dispatch_contacts(session, dispatch)
-            for telegram_id, language in contacts:
-                lang = resolve_lang(language)
-                text = t(
-                    lang, "global_mission_reminder", title=task.title, description=task.description
-                )
-                await notify_user(bot, telegram_id, text)
 
 
 async def apply_deadline_penalties(ctx: dict[str, Any]) -> None:

@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -292,27 +292,6 @@ async def set_dispatch_points(session: AsyncSession, *, dispatch: TaskDispatch, 
         dispatch.completed_at = dt.datetime.now(dt.UTC)
     dispatch.points_awarded = points
     await session.flush()
-
-
-async def list_active_global_mission_dispatches(
-    session: AsyncSession, now: dt.datetime
-) -> list[TaskDispatch]:
-    """Глобальные миссии (Критерий №3, оба варианта — с сдачей и без), ещё не
-    завершённые и (если есть дедлайн) не просроченные — для ежедневного
-    напоминания. completed_at, а не points_awarded — иначе GLOBAL_MISSION_SUBMIT
-    продолжала бы напоминать уже после того, как её сдали, просто до того, как
-    админ проставил баллы жюри."""
-    result = await session.execute(
-        select(TaskDispatch)
-        .join(Task, TaskDispatch.task_id == Task.id)
-        .where(
-            Task.criterion.in_([TaskCriterion.GLOBAL_MISSION, TaskCriterion.GLOBAL_MISSION_SUBMIT])
-        )
-        .where(TaskDispatch.completed_at.is_(None))
-        .where(or_(Task.deadline_at.is_(None), Task.deadline_at > now))
-        .options(selectinload(TaskDispatch.task))
-    )
-    return list(result.scalars().all())
 
 
 async def list_dispatches_for_task(session: AsyncSession, task_id: int) -> list[TaskDispatch]:
