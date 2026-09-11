@@ -52,10 +52,13 @@ async def _send_dispatch(
 
     for telegram_id, language in contacts:
         lang = resolve_lang(language)
+        # Личное задание (Task.is_personal) уходит участнику лично, часто ещё до
+        # распределения по командам — "для вашей команды" тут неуместно.
         if task.deadline_at is not None:
+            text_key = "task_dispatched_personal" if task.is_personal else "task_dispatched"
             text = t(
                 lang,
-                "task_dispatched",
+                text_key,
                 title=task.title,
                 description=task.description,
                 deadline=task.deadline_at.astimezone(dt.timezone(dt.timedelta(hours=5))).strftime(
@@ -63,9 +66,14 @@ async def _send_dispatch(
                 ),
             )
         else:
+            text_key = (
+                "task_dispatched_no_deadline_personal"
+                if task.is_personal
+                else "task_dispatched_no_deadline"
+            )
             text = t(
                 lang,
-                "task_dispatched_no_deadline",
+                text_key,
                 title=task.title,
                 description=task.description,
             )
