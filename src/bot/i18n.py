@@ -405,8 +405,8 @@ _TEXTS: dict[str, dict[Lang, str]] = {
         ),
     },
     "task_dispatched": {
-        "ru": "Новое задание для вашей команды!\n\n<b>{title}</b>\n{description}\n\nВыполнить нужно до {deadline}.",
-        "kk": "Командаңызға жаңа тапсырма!\n\n<b>{title}</b>\n{description}\n\n{deadline} дейін орындау керек.",
+        "ru": "Новое задание для вашей команды!\n\n<b>{title}</b>\n{description}\n\nВыполнить нужно до <b>{deadline}</b>.",
+        "kk": "Командаңызға жаңа тапсырма!\n\n<b>{title}</b>\n{description}\n\n<b>{deadline}</b> дейін орындау керек.",
     },
     "task_dispatched_no_deadline": {
         "ru": "Новое задание для вашей команды!\n\n<b>{title}</b>\n{description}",
@@ -481,8 +481,8 @@ _TEXTS: dict[str, dict[Lang, str]] = {
         "kk": "«{title}» тапсырмасы орындалды, бірақ жүлделі орындар бос емес — балл есептелмеді.",
     },
     "task_deadline_reminder": {
-        "ru": "⏰ Напоминание: до дедлайна по заданию «{title}» осталось {minutes} минут ({deadline}). Не забудьте сдать!",
-        "kk": "⏰ Ескерту: «{title}» тапсырмасының дедлайнына {minutes} минут қалды ({deadline}). Тапсыруды ұмытпаңыз!",
+        "ru": "⏰ Напоминание: до дедлайна по заданию «{title}» осталось {minutes} минут (<b>{deadline}</b>). Не забудьте сдать!",
+        "kk": "⏰ Ескерту: «{title}» тапсырмасының дедлайнына {minutes} минут қалды (<b>{deadline}</b>). Тапсыруды ұмытпаңыз!",
     },
     "task_penalty": {
         "ru": "Дедлайн по заданию «{title}» истёк, задание не выполнено — минус {points} баллов команде.",
@@ -552,8 +552,8 @@ _TEXTS: dict[str, dict[Lang, str]] = {
         "kk": "🌍 {title} — жаһандық миссия, балл соңында қорытындыланады",
     },
     "task_pending_deadline": {
-        "ru": "<b>{title}</b>\n{description}\n\nВыполнить нужно до {deadline}.",
-        "kk": "<b>{title}</b>\n{description}\n\n{deadline} дейін орындау керек.",
+        "ru": "<b>{title}</b>\n{description}\n\nВыполнить нужно до <b>{deadline}</b>.",
+        "kk": "<b>{title}</b>\n{description}\n\n<b>{deadline}</b> дейін орындау керек.",
     },
     "task_pending_no_deadline": {
         "ru": "<b>{title}</b>\n{description}",
