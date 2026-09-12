@@ -50,6 +50,13 @@ async def _send_dispatch(
         assert key is not None
         attachment_url = await storage.presigned_url(key)
 
+    # Для командных заданий с разным текстом на команду (Task.team_text_overrides,
+    # например, у каждой команды своя тема одного и того же фотозадания) — команда
+    # без записи в словаре получает обычный task.description, как и раньше.
+    description = task.description
+    if task.team_text_overrides and dispatch.team_id is not None:
+        description = task.team_text_overrides.get(str(dispatch.team_id), task.description)
+
     for telegram_id, language in contacts:
         lang = resolve_lang(language)
         # Личное задание (Task.is_personal) уходит участнику лично, часто ещё до
@@ -60,7 +67,7 @@ async def _send_dispatch(
                 lang,
                 text_key,
                 title=task.title,
-                description=task.description,
+                description=description,
                 deadline=task.deadline_at.astimezone(dt.timezone(dt.timedelta(hours=5))).strftime(
                     "%d.%m.%Y %H:%M"
                 ),
@@ -75,7 +82,7 @@ async def _send_dispatch(
                 lang,
                 text_key,
                 title=task.title,
-                description=task.description,
+                description=description,
             )
         try:
             # Глобальная миссия (Критерий №3) — чисто информационная рассылка, без

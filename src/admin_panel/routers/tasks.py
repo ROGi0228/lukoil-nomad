@@ -417,6 +417,7 @@ async def edit_task_form(
         if task is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         other_tasks = [t for t in await list_tasks(session) if t.id != task_id]
+        teams = await list_teams(session)
 
     send_date_value, send_time_value = _to_almaty_parts(task.send_at)
     deadline_date_value, deadline_time_value = _to_almaty_parts(task.deadline_at)
@@ -443,6 +444,7 @@ async def edit_task_form(
             "trigger_hours_value": (task.trigger_delay_minutes or 0) // 60,
             "trigger_minutes_value": (task.trigger_delay_minutes or 0) % 60,
             "attachment_url": attachment_url,
+            "teams": teams,
         },
     )
 
@@ -450,6 +452,7 @@ async def edit_task_form(
 @router.post("/{task_id}/edit", response_model=None)
 async def edit_task_route(
     task_id: int,
+    request: Request,
     title: str = Form(...),
     description: str = Form(...),
     schedule_mode: str = Form(default="fixed"),
@@ -491,6 +494,12 @@ async def edit_task_route(
         criterion, pass_points, rank_points_1, rank_points_2, rank_points_3
     )
 
+    form = await request.form()
+    team_text_overrides: dict[str, str] = {}
+    for key, value in form.items():
+        if key.startswith("team_override_") and isinstance(value, str) and value.strip():
+            team_text_overrides[key.removeprefix("team_override_")] = value.strip()
+
     storage = S3Storage(get_settings())
     async with async_session_factory() as session:
         task = await get_task(session, task_id)
@@ -511,6 +520,7 @@ async def edit_task_route(
             trigger_delay_minutes=delay_minutes,
             short_code=short_code.strip() or None,
             is_personal=is_personal,
+            team_text_overrides=team_text_overrides or None,
         )
 
         photo_key, video_key = await _save_attachment(storage, task.id, attachment)

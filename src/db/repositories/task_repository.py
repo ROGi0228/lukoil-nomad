@@ -29,6 +29,7 @@ async def create_task(
     is_personal: bool = False,
     trigger_task_id: int | None = None,
     trigger_delay_minutes: int | None = None,
+    team_text_overrides: dict[str, str] | None = None,
 ) -> Task:
     task = Task(
         title=title,
@@ -44,6 +45,7 @@ async def create_task(
         is_personal=is_personal,
         trigger_task_id=trigger_task_id,
         trigger_delay_minutes=trigger_delay_minutes,
+        team_text_overrides=team_text_overrides,
     )
     session.add(task)
     await session.flush()
@@ -66,6 +68,7 @@ async def update_task(
     trigger_delay_minutes: int | None,
     short_code: str | None = None,
     is_personal: bool = False,
+    team_text_overrides: dict[str, str] | None = None,
 ) -> None:
     """Правит уже созданное задание — например, если админ ошибся в дате/дедлайне.
     Уже отправленные сообщения при этом не меняются, только дальнейшее поведение
@@ -85,6 +88,7 @@ async def update_task(
     task.trigger_delay_minutes = trigger_delay_minutes
     task.short_code = short_code
     task.is_personal = is_personal
+    task.team_text_overrides = team_text_overrides
 
 
 def set_task_attachment(

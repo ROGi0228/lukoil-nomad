@@ -82,17 +82,28 @@ def _resolved_task_line(lang: Lang, dispatch: TaskDispatch) -> str:
     return t(lang, "task_line_overdue", title=task.title, points=points)
 
 
+def _dispatch_description(dispatch: TaskDispatch) -> str:
+    """Как в _send_dispatch (task_scheduler.py) — команда с переопределённым текстом
+    (Task.team_text_overrides) должна видеть тот же вариант и здесь, при повторном
+    просмотре через /tasks, а не общий task.description."""
+    task = dispatch.task
+    if task.team_text_overrides and dispatch.team_id is not None:
+        return task.team_text_overrides.get(str(dispatch.team_id), task.description)
+    return task.description
+
+
 def _pending_task_text(lang: Lang, dispatch: TaskDispatch) -> str:
     task = dispatch.task
+    description = _dispatch_description(dispatch)
     if task.deadline_at is not None:
         return t(
             lang,
             "task_pending_deadline",
             title=task.title,
-            description=task.description,
+            description=description,
             deadline=_format_dt(task.deadline_at),
         )
-    return t(lang, "task_pending_no_deadline", title=task.title, description=task.description)
+    return t(lang, "task_pending_no_deadline", title=task.title, description=description)
 
 
 @router.message(Command("tasks"))

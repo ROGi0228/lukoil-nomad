@@ -24,6 +24,12 @@ class Task(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
 
+    # Для командных заданий, где у каждой команды свой вариант текста (например,
+    # разная тема для одной и той же фотозадачи) — {team_id (str): текст}. Команда,
+    # для которой ключа нет, получает обычный description. NULL/{} — вариантов нет,
+    # всем один текст (обычный случай). См. _send_dispatch в task_scheduler.py.
+    team_text_overrides: Mapped[dict[str, str] | None] = mapped_column(JSONB)
+
     # Необязательный короткий код "день.задание" (например "1.1", "2.3") — если
     # задан, задание получает колонку в табличном /leaderboard: часть до первой
     # точки группирует задания по дню экспедиции, часть после — подпись колонки

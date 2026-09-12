@@ -33,6 +33,19 @@
             <textarea id="task-description" name="description" required>{{ task.description }}</textarea>
         </div>
 
+        {% if not task.is_personal and teams %}
+        <div class="form-field">
+            <p class="field-group-label">Свой текст для отдельных команд (опционально)</p>
+            <p class="field-hint" style="margin-bottom: 0.6rem;">Оставьте пустым, чтобы команда получила обычный текст выше. Заполненное поле полностью заменяет текст задания только для этой команды (заголовок и дедлайн общие).</p>
+            {% for team in teams %}
+            <div class="form-field">
+                <label for="team-override-{{ team.id }}">{{ team.name }}</label>
+                <textarea id="team-override-{{ team.id }}" name="team_override_{{ team.id }}">{{ task.team_text_overrides.get(team.id|string, '') if task.team_text_overrides else '' }}</textarea>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="form-field">
             <label for="task-attachment">Фото или видео к заданию (опционально)</label>
             {% if attachment_url %}
