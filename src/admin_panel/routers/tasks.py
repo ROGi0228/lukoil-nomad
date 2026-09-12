@@ -342,6 +342,37 @@ async def score_dispatch(
     return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/{task_id}/dispatch/{dispatch_id}/reset-points", response_model=None)
+async def reset_dispatch_points(
+    task_id: int,
+    dispatch_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Обнуляет уже начисленные баллы за сдачу — например, участник прикрепил не то
+    вложение, что требовалось по условию. В отличие от score_dispatch (там баллы
+    произвольные и уведомление опционально), здесь баллы всегда 0 и уведомление
+    с объяснением причины отправляется всегда — это и есть смысл действия."""
+    async with async_session_factory() as session:
+        dispatch = await get_dispatch(session, dispatch_id)
+        task = await get_task(session, task_id)
+        if dispatch is None or task is None or dispatch.task_id != task_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        await set_dispatch_points(session, dispatch=dispatch, points=0)
+        await session.commit()
+        contacts = await dispatch_contacts(session, dispatch)
+
+    bot: Bot = request.app.state.bot
+    for telegram_id, language in contacts:
+        lang = resolve_lang(language)
+        await notify_user(
+            bot, telegram_id, t(lang, "task_points_reset_wrong_attachment", title=task.title)
+        )
+
+    return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/{task_id}/dispatch-now", response_model=None)
 async def dispatch_now(
     task_id: int,

@@ -115,6 +115,12 @@
                     {% else %}
                     {{ d.points_awarded if d.points_awarded is not none else "—" }}
                     {% endif %}
+                    {% if d.completed_at %}
+                    <form method="post" action="/tasks/{{ task.id }}/dispatch/{{ d.id }}/reset-points" class="inline-form" style="margin-top: 0.35rem;" onsubmit="return confirm('Обнулить баллы за эту сдачу и уведомить, что вложение не подходит под условие задания?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 13) }} Обнулить</button>
+                    </form>
+                    {% endif %}
                 </td>
                 <td>
                     {% if d.submission_items %}
