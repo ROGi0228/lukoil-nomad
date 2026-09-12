@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -347,6 +347,30 @@ async def list_dispatches_for_application(
         .order_by(TaskDispatch.sent_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def delete_dispatches_for_application(session: AsyncSession, application_id: int) -> None:
+    """Чистит личные диспетчи участника (task_dispatches.application_id) со всеми
+    зависимостями — нужно перед удалением самой заявки, так как на applications.id
+    ссылается task_dispatches.application_id."""
+    dispatch_ids = (
+        (
+            await session.execute(
+                select(TaskDispatch.id).where(TaskDispatch.application_id == application_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not dispatch_ids:
+        return
+    await session.execute(
+        delete(TaskSubmissionItem).where(TaskSubmissionItem.dispatch_id.in_(dispatch_ids))
+    )
+    await session.execute(
+        delete(TaskDispatchMessage).where(TaskDispatchMessage.dispatch_id.in_(dispatch_ids))
+    )
+    await session.execute(delete(TaskDispatch).where(TaskDispatch.id.in_(dispatch_ids)))
 
 
 async def add_submission_item(

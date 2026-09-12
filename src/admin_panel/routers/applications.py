@@ -14,6 +14,7 @@ from src.db.models.admin_user import AdminUser
 from src.db.models.application import Application
 from src.db.models.user import User
 from src.db.repositories.application_repository import get_application
+from src.db.repositories.task_repository import delete_dispatches_for_application
 from src.db.repositories.team_repository import list_teams
 from src.db.session import async_session_factory
 
@@ -83,6 +84,26 @@ async def assign_team(
     return RedirectResponse(
         f"/applications/{application_id}", status_code=status.HTTP_303_SEE_OTHER
     )
+
+
+@router.post("/{application_id}/delete", response_model=None)
+async def delete_application_route(
+    application_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Удаляет лишнюю/ошибочную регистрацию — например, участника, успевшего
+    зарегистрироваться уже после того, как команды были сформированы. Заявку с
+    командой тоже можно удалить (это не удаляет саму команду)."""
+    async with async_session_factory() as session:
+        application = await get_application(session, application_id)
+        if application is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        await delete_dispatches_for_application(session, application_id)
+        await session.delete(application)
+        await session.commit()
+
+    return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/{application_id}/message", response_model=None)

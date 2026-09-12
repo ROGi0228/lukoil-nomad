@@ -48,4 +48,13 @@
         <button type="submit" class="action-button action-button--secondary">{{ icons.svg("message-square", 15) }} Написать</button>
     </form>
 </section>
+
+<section class="actions">
+    <h2>Удалить участника</h2>
+    <p class="muted">Удаляет регистрацию целиком (в том числе из команды, если она назначена). Например, для лишних участников, зарегистрировавшихся уже после того, как команды были сформированы. Действие необратимо.</p>
+    <form method="post" action="/applications/{{ application.id }}/delete" class="inline-form" onsubmit="return confirm('Удалить участника «{{ application.full_name }}»? Регистрация будет удалена безвозвратно.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="action-button action-button--reject">{{ icons.svg("trash", 15) }} Удалить участника</button>
+    </form>
+</section>
 {% endblock %}
