@@ -47,9 +47,9 @@
     <tbody>
         {% for app in applications %}
         <tr onclick="window.location='/applications/{{ app.id }}'" class="clickable-row">
-            <td><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
-            <td>{% if app.team %}<a href="/teams/{{ app.team.id }}" class="table-link">{{ app.team.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-            <td>{{ app.created_at | format_dt }}</td>
+            <td data-label="ФИО"><a href="/applications/{{ app.id }}">{{ app.full_name }}</a></td>
+            <td data-label="Команда">{% if app.team %}<a href="/teams/{{ app.team.id }}" class="table-link">{{ app.team.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td data-label="Дата регистрации">{{ app.created_at | format_dt }}</td>
         </tr>
         {% else %}
         <tr>

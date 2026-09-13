@@ -51,9 +51,9 @@
             <tbody>
                 {% for team in teams %}
                 <tr>
-                    <td>{{ team.name }}</td>
-                    <td>{% for m in team.members %}{{ m.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
-                    <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
+                    <td data-label="Название">{{ team.name }}</td>
+                    <td data-label="Состав">{% for m in team.members %}{{ m.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
                     <td><a href="/teams/{{ team.id }}" class="table-link">Открыть {{ icons.svg("chevron-right", 13) }}</a></td>
                 </tr>
                 {% endfor %}

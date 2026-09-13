@@ -95,21 +95,21 @@
             {% for d in dispatches %}
             <tr>
                 {% if d.team_id %}
-                <td><a href="/teams/{{ d.team_id }}" class="table-link">{{ d.team.name }}</a></td>
+                <td data-label="Команда"><a href="/teams/{{ d.team_id }}" class="table-link">{{ d.team.name }}</a></td>
                 {% else %}
-                <td><a href="/applications/{{ d.application_id }}" class="table-link">{{ d.application.full_name }}</a></td>
+                <td data-label="Участник"><a href="/applications/{{ d.application_id }}" class="table-link">{{ d.application.full_name }}</a></td>
                 {% endif %}
-                <td>{{ d.sent_at | format_dt }}</td>
-                <td>
+                <td data-label="Отправлено">{{ d.sent_at | format_dt }}</td>
+                <td data-label="Выполнено">
                     {% if d.completed_at %}{{ d.completed_at | format_dt }}
                     {% elif d.penalty_applied %}<span class="status-badge status-badge--rejected">Просрочено</span>
                     {% elif task.criterion.value == "global_mission" %}<span class="status-badge status-badge--waiting">Оценивается в конце</span>
                     {% else %}<span class="status-badge status-badge--waiting">Ожидается</span>
                     {% endif %}
                 </td>
-                <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">
+                <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">
                     {% if task.criterion.value in ("manual", "global_mission", "global_mission_submit") %}
-                    <form method="post" action="/tasks/{{ task.id }}/dispatch/{{ d.id }}/score" class="form-row" style="align-items: flex-end; flex-wrap: nowrap;">
+                    <form method="post" action="/tasks/{{ task.id }}/dispatch/{{ d.id }}/score" class="form-row" style="align-items: flex-end;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="number" name="points" value="{{ d.points_awarded if d.points_awarded is not none else 0 }}" style="width: 80px;">
                         <label class="checkbox-row" style="margin: 0 0.4rem;">
@@ -127,7 +127,7 @@
                     </form>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Сдача">
                     {% if d.submission_items %}
                     <div class="submission-list">
                         {% for item in d.submission_items %}

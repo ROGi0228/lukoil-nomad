@@ -21,7 +21,7 @@
             <tbody>
                 {% for m in team.members %}
                 <tr>
-                    <td>{{ m.full_name }}</td>
+                    <td data-label="Участник">{{ m.full_name }}</td>
                     <td>
                         <form method="post" action="/teams/{{ team.id }}/remove-member" class="inline-form">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -86,10 +86,10 @@
             <tbody>
                 {% for a in adjustments %}
                 <tr>
-                    <td>{{ a.created_at | format_dt }}</td>
-                    <td>{{ a.admin_user.username }}</td>
-                    <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
-                    <td>{{ a.reason }}</td>
+                    <td data-label="Когда">{{ a.created_at | format_dt }}</td>
+                    <td data-label="Кто">{{ a.admin_user.username }}</td>
+                    <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
+                    <td data-label="Причина">{{ a.reason }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

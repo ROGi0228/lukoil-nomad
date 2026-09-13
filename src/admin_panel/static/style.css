@@ -1293,3 +1293,79 @@ a.submission-chip:hover {
         gap: 0.5rem;
     }
 }
+
+/* ---------- Таблицы на телефоне: карточки вместо горизонтального скролла ----------
+   Каждая <tr> становится отдельной карточкой, а каждая <td> — подписанной строкой
+   внутри неё (подпись берётся из data-label, дублирующего текст <th> этой колонки).
+   Колонки без data-label (обычно последняя — с кнопкой действия) остаются без
+   подписи, сама кнопка/ссылка говорит за себя. */
+@media (max-width: 640px) {
+    .table-scroll {
+        overflow-x: visible;
+    }
+
+    .applications-table {
+        display: block;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .applications-table thead {
+        display: none;
+    }
+
+    .applications-table tbody {
+        display: block;
+    }
+
+    .applications-table tr {
+        display: block;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-xs);
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .applications-table tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .applications-table td {
+        display: block;
+        padding: 0.45rem 0;
+        border-bottom: 1px dashed var(--border);
+    }
+
+    .applications-table tr > td:first-child {
+        padding-top: 0;
+    }
+
+    .applications-table tr > td:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .applications-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.25rem;
+    }
+
+    .applications-table .empty-row {
+        padding: 1.5rem 0;
+    }
+
+    /* Строка ввода баллов (число + «Увед.» + галочка) в ячейке «Баллы» —
+       на десктопе умещается в один ряд, на телефоне переносится. */
+    .applications-table .form-row {
+        flex-wrap: wrap;
+    }
+}

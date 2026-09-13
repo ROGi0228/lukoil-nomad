@@ -20,9 +20,9 @@
             <tbody>
                 {% for team in leaderboard %}
                 <tr>
-                    <td style="font-family: var(--font-mono);">{{ loop.index }}</td>
-                    <td><a href="/teams/{{ team.id }}" class="table-link">{{ team.name }}</a></td>
-                    <td style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
+                    <td data-label="#" style="font-family: var(--font-mono);">{{ loop.index }}</td>
+                    <td data-label="Команда"><a href="/teams/{{ team.id }}" class="table-link">{{ team.name }}</a></td>
+                    <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ scores[team.id] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -204,7 +204,7 @@
             <tbody>
                 {% for task in tasks %}
                 <tr>
-                    <td>
+                    <td data-label="Название">
                         {{ task.title }}{% if task.is_daily %} <span class="muted">(задание дня)</span>{% endif %}{% if task.is_personal %} <span class="muted">(личное)</span>{% endif %}<br>
                         <span class="muted">
                             {% if task.criterion.value == "pass_fail" %}Выполнил/не выполнил — {{ task.pass_points }} б.
@@ -215,7 +215,7 @@
                             {% endif %}
                         </span>
                     </td>
-                    <td>
+                    <td data-label="Отправка">
                         {% if task.trigger_task_id %}
                         <span class="muted">После «{{ task.trigger_task.title }}» +{{ task.trigger_delay_minutes // 60 }}ч {{ task.trigger_delay_minutes % 60 }}м</span>
                         {% elif task.send_at %}
@@ -224,8 +224,8 @@
                         <span class="muted">—</span>
                         {% endif %}
                     </td>
-                    <td>{% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}<span class="muted">Без дедлайна</span>{% endif %}</td>
-                    <td>
+                    <td data-label="Дедлайн">{% if task.deadline_at %}{{ task.deadline_at | format_dt }}{% else %}<span class="muted">Без дедлайна</span>{% endif %}</td>
+                    <td data-label="Разослано">
                         {% if task.trigger_task_id %}
                         <span class="status-badge status-badge--waiting">{{ dispatch_counts[task.id] }} / {{ total_teams }} команд</span>
                         {% elif task.dispatched %}
