@@ -780,7 +780,7 @@ h1, h2, h3 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.35rem;
 }
 
 .detail-card {
@@ -789,6 +789,15 @@ h1, h2, h3 {
     border-radius: var(--radius-md);
     padding: 1.2rem 1.4rem;
     box-shadow: var(--shadow-xs);
+    /* Отступ снизу — на случай, когда карточка стоит сама по себе прямо в
+       .content (task_detail.html, task_edit.html), без обёртки .stack. Внутри
+       .stack он обнуляется ниже — там расстояние между карточками уже даёт
+       gap контейнера, дублировать его не нужно. */
+    margin-bottom: 1.35rem;
+}
+
+.stack > .detail-card {
+    margin-bottom: 0;
 }
 
 .detail-card h2 {
@@ -852,7 +861,7 @@ h1, h2, h3 {
     flex-wrap: wrap;
     align-items: center;
     gap: 0.6rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.35rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
