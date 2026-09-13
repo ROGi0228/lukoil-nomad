@@ -490,6 +490,9 @@ h1, h2, h3 {
     margin: 0.15rem 0 0;
     color: var(--text-muted);
     font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .topbar__actions {
@@ -819,6 +822,17 @@ h1, h2, h3 {
 .muted {
     color: var(--text-muted);
     font-size: 0.88rem;
+}
+
+/* Полный текст задания (task.description) — переносы строк из исходного текста
+   сохраняем как есть (white-space: pre-wrap), а не сворачиваем в один абзац, как
+   раньше было в topbar__subtitle. */
+.task-description {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-size: 0.92rem;
+    line-height: 1.6;
 }
 
 .document-photo {
@@ -1231,5 +1245,51 @@ a.submission-chip:hover {
 
     .topbar {
         padding: 0.9rem 1rem;
+        flex-wrap: wrap;
+    }
+
+    /* Заголовок с кнопками (Изменить / Отправить сейчас / Удалить рассылку и
+       т.п.) — на узком экране действия уходят на отдельную строку и
+       переносятся сами, вместо того чтобы вылезать за край экрана в один
+       ряд без переноса (flex-shrink: 0 в .topbar__actions). */
+    .topbar__heading {
+        flex-basis: 100%;
+    }
+
+    .topbar__actions {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .topbar__actions .inline-form,
+    .topbar__actions > .action-button,
+    .topbar__actions > .link-button {
+        flex: 1 1 auto;
+    }
+
+    .radio-row,
+    .checkbox-row {
+        min-width: 0;
+    }
+
+    .detail-card,
+    .actions,
+    .filters {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .topbar__heading h1 {
+        overflow-wrap: break-word;
+    }
+
+    .form-row > .form-field {
+        min-width: 100%;
+    }
+
+    .table-actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }
 }

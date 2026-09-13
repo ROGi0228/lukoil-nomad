@@ -67,6 +67,11 @@
 </p>
 {% endif %}
 
+<section class="detail-card">
+    <h2 class="section-title">{{ icons.svg("clipboard-list", 16) }} Текст задания</h2>
+    <p class="task-description">{{ task.description }}</p>
+</section>
+
 {% if attachment_url %}
 <section class="detail-card">
     <h2 class="section-title">{% if task.attachment_photo_key %}{{ icons.svg("image", 17) }} Фото задания{% else %}{{ icons.svg("video", 17) }} Видео задания{% endif %}</h2>
