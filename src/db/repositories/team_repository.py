@@ -1,3 +1,5 @@
+import datetime as dt
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -96,7 +98,15 @@ async def update_point_adjustment(
 ) -> None:
     """Правит уже созданную корректировку — например, координатор ошибся в числе
     баллов или тексте. Счёт команды пересчитывается сам при следующем чтении
-    (get_team_score суммирует построчно, отдельного кеша нет)."""
+    (get_team_score суммирует построчно, отдельного кеша нет). Текущие значения
+    сохраняются в previous_versions ДО перезаписи, чтобы в админке была видна
+    и исходная версия, а не только последняя."""
+    history_entry: dict[str, object] = {
+        "points": adjustment.points,
+        "reason": adjustment.reason,
+        "edited_at": dt.datetime.now(dt.UTC).isoformat(),
+    }
+    adjustment.previous_versions = [*(adjustment.previous_versions or []), history_entry]
     adjustment.points = points
     adjustment.reason = reason
 

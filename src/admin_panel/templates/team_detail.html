@@ -140,7 +140,17 @@
                     <td data-label="Когда">{{ a.created_at | format_dt }}</td>
                     <td data-label="Кто">{{ a.admin_user.username }}</td>
                     <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
-                    <td data-label="Причина" class="task-description">{{ a.reason }}</td>
+                    <td data-label="Причина" class="task-description">
+                        {{ a.reason }}
+                        {% if a.previous_versions %}
+                        <details style="margin-top: 0.6rem;">
+                            <summary class="muted" style="cursor: pointer; font-size: 0.78rem;">Предыдущие версии ({{ a.previous_versions | length }})</summary>
+                            {% for v in a.previous_versions %}
+                            <p class="muted task-description" style="font-size: 0.82rem; margin: 0.4rem 0 0; padding: 0.5rem 0.6rem; background: var(--surface-2); border-radius: var(--radius-sm);">Было {% if v.points > 0 %}+{{ v.points }}{% else %}{{ v.points }}{% endif %}: {{ v.reason }}</p>
+                            {% endfor %}
+                        </details>
+                        {% endif %}
+                    </td>
                     <td><a href="/teams/{{ team.id }}/adjustments/{{ a.id }}/edit" class="table-link">{{ icons.svg("pencil", 13) }} Изменить</a></td>
                 </tr>
                 {% endfor %}
