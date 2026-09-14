@@ -22,6 +22,7 @@ from src.db.repositories.broadcast_repository import (
     list_broadcast_messages,
     list_broadcasts,
     resolve_broadcast_contacts,
+    update_broadcast,
 )
 from src.db.repositories.team_repository import list_teams
 from src.db.session import async_session_factory
@@ -38,6 +39,11 @@ def _to_utc(date_str: str, time_str: str) -> dt.datetime:
     return naive.replace(tzinfo=_ALMATY_TZ).astimezone(dt.UTC)
 
 
+def _to_almaty_parts(value: dt.datetime) -> tuple[str, str]:
+    local = value.astimezone(_ALMATY_TZ)
+    return local.strftime("%Y-%m-%d"), local.strftime("%H:%M")
+
+
 def _audience_label(
     audience: str, team: str, participant: str, teams: list[Team], participants: list[Application]
 ) -> str:
@@ -47,6 +53,8 @@ def _audience_label(
     if audience == "participant":
         matched_app = next((a for a in participants if str(a.id) == participant), None)
         return f"Участник: {matched_app.full_name}" if matched_app else "Участник (не выбран)"
+    if audience == "teams":
+        return "Все команды"
     return "Все зарегистрированные участники"
 
 
@@ -58,6 +66,7 @@ async def broadcast_page(
     total: int | None = None,
     scheduled: int | None = None,
     cancelled: int | None = None,
+    edited: int | None = None,
     admin: AdminUser = Depends(get_current_admin),
 ) -> HTMLResponse:
     async with async_session_factory() as session:
@@ -80,6 +89,7 @@ async def broadcast_page(
             "total": total,
             "scheduled": scheduled,
             "cancelled": cancelled,
+            "edited": edited,
             "history": history,
             "history_counts": history_counts,
             "form": {
@@ -219,6 +229,78 @@ async def cancel_scheduled_broadcast(
         await session.commit()
 
     return RedirectResponse("/broadcast?cancelled=1", status_code=http_status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/{broadcast_id}/edit", response_class=HTMLResponse)
+async def edit_broadcast_form(
+    broadcast_id: int, request: Request, admin: AdminUser = Depends(get_current_admin)
+) -> HTMLResponse:
+    async with async_session_factory() as session:
+        broadcast = await get_broadcast(session, broadcast_id)
+        if broadcast is None or broadcast.sent_at is not None:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND)
+        teams = await list_teams(session)
+        participants = await list_all_applications(session)
+
+    send_date, send_time = _to_almaty_parts(broadcast.send_at)
+
+    return templates.TemplateResponse(
+        request,
+        "broadcast_edit.html",
+        {
+            "admin": admin,
+            "csrf_token": get_csrf_token(request),
+            "broadcast": broadcast,
+            "teams": teams,
+            "participants": participants,
+            "form": {
+                "audience": broadcast.audience,
+                "team": str(broadcast.team_id) if broadcast.team_id else "",
+                "participant": str(broadcast.participant_id) if broadcast.participant_id else "",
+                "message": broadcast.message,
+                "send_date": send_date,
+                "send_time": send_time,
+            },
+        },
+    )
+
+
+@router.post("/{broadcast_id}/edit", response_model=None)
+async def edit_broadcast_route(
+    broadcast_id: int,
+    audience: str = Form("all"),
+    team: str = Form(""),
+    participant: str = Form(""),
+    message: str = Form(""),
+    send_date: str = Form(...),
+    send_time: str = Form(...),
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    team_id = int(team) if team else None
+    participant_id = int(participant) if participant else None
+    send_at = _to_utc(send_date, send_time)
+
+    async with async_session_factory() as session:
+        broadcast = await get_broadcast(session, broadcast_id)
+        if broadcast is None or broadcast.sent_at is not None:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND)
+        teams = await list_teams(session)
+        participants = await list_all_applications(session)
+        label = _audience_label(audience, team, participant, teams, participants)
+
+        await update_broadcast(
+            broadcast,
+            message=message,
+            audience_label=label,
+            audience=audience,
+            team_id=team_id,
+            participant_id=participant_id,
+            send_at=send_at,
+        )
+        await session.commit()
+
+    return RedirectResponse("/broadcast?edited=1", status_code=http_status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/{broadcast_id}/delete", response_model=None)

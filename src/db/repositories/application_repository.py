@@ -60,6 +60,18 @@ async def list_all_applications_contacts(session: AsyncSession) -> list[tuple[in
     return list(result.tuples())
 
 
+async def list_all_team_members_contacts(session: AsyncSession) -> list[tuple[int, str | None]]:
+    """(telegram_id, language) участников, уже распределённых в какую-либо команду —
+    аудитория «всем командам» массовой рассылки, в отличие от «все зарегистрированные»
+    не включает тех, кто зарегистрировался, но ещё не попал ни в одну команду."""
+    result = await session.execute(
+        select(User.telegram_id, User.language)
+        .join(Application, Application.user_id == User.id)
+        .where(Application.team_id.is_not(None))
+    )
+    return list(result.tuples())
+
+
 async def get_application_contact(
     session: AsyncSession, application_id: int
 ) -> tuple[int, str | None] | None:

@@ -1,0 +1,79 @@
+{% extends "_app.html" %}
+{% import "_icons.html" as icons %}
+
+{% block title %}Изменить рассылку — LUKOIL NOMAD{% endblock %}
+
+{% block page_title %}Изменить рассылку{% endblock %}
+{% block page_subtitle %}<p class="topbar__subtitle">Ещё не отправлена — можно менять текст, получателей и время</p>{% endblock %}
+
+{% block content %}
+<a class="back-link" href="/broadcast">{{ icons.svg("chevron-left", 15) }} К рассылкам</a>
+
+<section class="detail-card">
+    <form method="post" action="/broadcast/{{ broadcast.id }}/edit" class="broadcast-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <p class="field-group-label">Кому</p>
+        <div class="audience-picker">
+            <label class="radio-row">
+                <input type="radio" name="audience" value="all" {% if form.audience == "all" %}checked{% endif %}>
+                {{ icons.svg("award", 15) }} Всем зарегистрированным
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="audience" value="teams" {% if form.audience == "teams" %}checked{% endif %}>
+                {{ icons.svg("users", 15) }} Всем командам
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
+                {{ icons.svg("users", 15) }} Конкретной команде
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="audience" value="participant" {% if form.audience == "participant" %}checked{% endif %}>
+                {{ icons.svg("message-square", 15) }} Конкретному участнику
+            </label>
+        </div>
+        <p class="field-hint" style="margin-bottom: 0.9rem;">«Всем зарегистрированным» — вообще все, кто прошёл регистрацию, даже если ещё не попал в команду. «Всем командам» — только те, кто уже состоит в какой-либо команде.</p>
+
+        <div class="conditional-field conditional-field--team form-field" style="max-width: 320px;">
+            <label for="broadcast-team">Команда</label>
+            <select id="broadcast-team" name="team">
+                <option value="">Выберите команду</option>
+                {% for team in teams %}
+                <option value="{{ team.id }}" {% if form.team == team.id | string %}selected{% endif %}>{{ team.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="conditional-field conditional-field--participant form-field" style="max-width: 320px;">
+            <label for="broadcast-participant">Участник</label>
+            <select id="broadcast-participant" name="participant">
+                <option value="">Выберите участника</option>
+                {% for app in participants %}
+                <option value="{{ app.id }}" {% if form.participant == app.id | string %}selected{% endif %}>
+                    {{ app.full_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-field">
+            <label for="broadcast-message">Текст сообщения</label>
+            <textarea id="broadcast-message" name="message" rows="8" required>{{ form.message }}</textarea>
+        </div>
+
+        <p class="field-group-label">Когда отправить</p>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="broadcast-send-date">Дата отправки</label>
+                <input type="date" id="broadcast-send-date" name="send_date" value="{{ form.send_date }}" required>
+            </div>
+            <div class="form-field">
+                <label for="broadcast-send-time">Время отправки</label>
+                <input type="time" id="broadcast-send-time" name="send_time" value="{{ form.send_time }}" required>
+            </div>
+        </div>
+
+        <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Сохранить</button>
+    </form>
+</section>
+{% endblock %}

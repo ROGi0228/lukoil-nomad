@@ -8,6 +8,7 @@ from src.db.models.broadcast import Broadcast, BroadcastMessage
 from src.db.repositories.application_repository import (
     get_application_contact,
     list_all_applications_contacts,
+    list_all_team_members_contacts,
 )
 from src.db.repositories.team_repository import list_team_member_contacts
 
@@ -54,6 +55,8 @@ async def resolve_broadcast_contacts(
             return []
         contact = await get_application_contact(session, participant_id)
         return [contact] if contact else []
+    if audience == "teams":
+        return await list_all_team_members_contacts(session)
     return await list_all_applications_contacts(session)
 
 
@@ -66,6 +69,26 @@ async def list_pending_broadcasts(session: AsyncSession, now: dt.datetime) -> li
 
 async def mark_broadcast_sent(session: AsyncSession, broadcast: Broadcast, sent_at: dt.datetime) -> None:
     broadcast.sent_at = sent_at
+
+
+async def update_broadcast(
+    broadcast: Broadcast,
+    *,
+    message: str,
+    audience_label: str,
+    audience: str,
+    team_id: int | None,
+    participant_id: int | None,
+    send_at: dt.datetime,
+) -> None:
+    """Правит ещё не отправленную (sent_at IS NULL) запланированную рассылку —
+    вызывающий код обязан проверить это перед вызовом, здесь не перепроверяется."""
+    broadcast.message = message
+    broadcast.audience_label = audience_label
+    broadcast.audience = audience
+    broadcast.team_id = team_id
+    broadcast.participant_id = participant_id
+    broadcast.send_at = send_at
 
 
 async def add_broadcast_message(

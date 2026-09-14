@@ -16,6 +16,9 @@
 {% if cancelled is not none %}
 <p class="flash-banner">{{ icons.svg("check", 16) }} Запланированная рассылка отменена.</p>
 {% endif %}
+{% if edited is not none %}
+<p class="flash-banner">{{ icons.svg("check", 16) }} Запланированная рассылка изменена.</p>
+{% endif %}
 {% if deleted is not none %}
 <p class="flash-banner">{{ icons.svg("check", 16) }} Удалено сообщений: {{ deleted }} из {{ total }}.</p>
 {% endif %}
@@ -31,6 +34,10 @@
             {{ icons.svg("award", 15) }} Всем зарегистрированным
         </label>
         <label class="radio-row">
+            <input type="radio" name="audience" value="teams" {% if form.audience == "teams" %}checked{% endif %}>
+            {{ icons.svg("users", 15) }} Всем командам
+        </label>
+        <label class="radio-row">
             <input type="radio" name="audience" value="team" {% if form.audience == "team" %}checked{% endif %}>
             {{ icons.svg("users", 15) }} Конкретной команде
         </label>
@@ -39,6 +46,7 @@
             {{ icons.svg("message-square", 15) }} Конкретному участнику
         </label>
     </div>
+    <p class="field-hint" style="margin-bottom: 0.9rem;">«Всем зарегистрированным» — вообще все, кто прошёл регистрацию, даже если ещё не попал в команду. «Всем командам» — только те, кто уже состоит в какой-либо команде.</p>
 
     <div class="conditional-field conditional-field--team form-field" style="max-width: 320px;">
         <label for="broadcast-team">Команда</label>
@@ -122,10 +130,13 @@
                 <td data-label="Получателей" style="font-family: var(--font-mono);">{% if b.sent_at %}{{ history_counts[b.id] }}{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>
                     {% if not b.sent_at %}
-                    <form method="post" action="/broadcast/{{ b.id }}/cancel" class="inline-form" onsubmit="return confirm('Отменить запланированную рассылку? Она не уйдёт получателям.');">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 14) }} Отменить</button>
-                    </form>
+                    <div class="table-actions">
+                        <a href="/broadcast/{{ b.id }}/edit" class="table-link">{{ icons.svg("pencil", 13) }} Изменить</a>
+                        <form method="post" action="/broadcast/{{ b.id }}/cancel" class="inline-form" onsubmit="return confirm('Отменить запланированную рассылку? Она не уйдёт получателям.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 14) }} Отменить</button>
+                        </form>
+                    </div>
                     {% elif history_counts[b.id] %}
                     <form method="post" action="/broadcast/{{ b.id }}/delete" class="inline-form" onsubmit="return confirm('Удалить это сообщение у всех получателей ({{ history_counts[b.id] }})? Действие необратимо, и сработает только для сообщений младше 48 часов.');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
