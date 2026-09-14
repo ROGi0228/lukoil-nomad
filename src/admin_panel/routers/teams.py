@@ -8,7 +8,6 @@ from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import format_dt
 from src.admin_panel.notify_helpers import notify_new_team_members
-from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
 from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
@@ -162,11 +161,12 @@ async def adjust_points_route(
         else:
             contacts = await list_team_member_contacts(session, team_id)
 
-    points_text = f"+{points}" if points > 0 else str(points)
+    # Причина уходит как есть, без добавленного координатором текста вроде
+    # "Вашей команде начислены баллы: +N." — само число баллов, если нужно,
+    # координатор пишет в тексте причины (см. плейсхолдер поля выше).
     bot: Bot = request.app.state.bot
-    for telegram_id, language in contacts:
-        lang = resolve_lang(language)
-        await notify_user(bot, telegram_id, t(lang, "team_points_adjusted", points=points_text, reason=reason))
+    for telegram_id, _language in contacts:
+        await notify_user(bot, telegram_id, reason)
 
     return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
 

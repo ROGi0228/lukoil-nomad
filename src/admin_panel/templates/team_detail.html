@@ -97,15 +97,14 @@
         <form method="post" action="/teams/{{ team.id }}/adjust-points" class="points-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-            <div class="form-row">
-                <div class="form-field" style="max-width: 140px;">
-                    <label for="adjust-points">Баллы (± )</label>
-                    <input type="number" id="adjust-points" name="points" placeholder="напр. 2 или -2" required>
-                </div>
-                <div class="form-field" style="flex: 1;">
-                    <label for="adjust-reason">Причина</label>
-                    <input type="text" id="adjust-reason" name="reason" placeholder="Например, снят штраф — дедлайн продлили" required>
-                </div>
+            <div class="form-field" style="max-width: 140px;">
+                <label for="adjust-points">Баллы (± )</label>
+                <input type="number" id="adjust-points" name="points" placeholder="напр. 2 или -2" required>
+            </div>
+            <div class="form-field">
+                <label for="adjust-reason">Причина</label>
+                <textarea id="adjust-reason" name="reason" rows="3" placeholder="Например, снят штраф — дедлайн продлили" required></textarea>
+                <p class="field-hint">Уходит команде как есть, без добавленного текста вроде «начислены баллы: +N» — если нужно упомянуть баллы, пишите прямо здесь. Можно писать несколько строк.</p>
             </div>
 
             <p class="field-group-label">Уведомить</p>
@@ -141,7 +140,7 @@
                     <td data-label="Когда">{{ a.created_at | format_dt }}</td>
                     <td data-label="Кто">{{ a.admin_user.username }}</td>
                     <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
-                    <td data-label="Причина">{{ a.reason }}</td>
+                    <td data-label="Причина" class="task-description">{{ a.reason }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
