@@ -11,6 +11,57 @@
 
 <div class="stack">
     <section class="detail-card">
+        <h2 class="section-title">{{ icons.svg("clipboard-list", 17) }} Задания команды</h2>
+        {% if dispatches %}
+        <p class="total-count">{{ icons.svg("trophy", 13) }} Баллов за задания: <strong>{{ tasks_points_total }}</strong> <span class="muted">(плюс ручные корректировки — см. «Баллы» ниже — в общий счёт {{ score }})</span></p>
+        <div class="table-scroll">
+        <table class="applications-table">
+            <thead>
+                <tr><th>Задание</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th><th>Сдача</th></tr>
+            </thead>
+            <tbody>
+                {% for d in dispatches %}
+                <tr onclick="window.location='/tasks/{{ d.task_id }}'" class="clickable-row">
+                    <td data-label="Задание"><a href="/tasks/{{ d.task_id }}" class="table-link">{% if d.task.short_code %}{{ d.task.short_code }} — {% endif %}{{ d.task.title }}</a></td>
+                    <td data-label="Отправлено">{{ d.sent_at | format_dt }}</td>
+                    <td data-label="Выполнено">
+                        {% if d.completed_at %}{{ d.completed_at | format_dt }}
+                        {% elif d.penalty_applied %}<span class="status-badge status-badge--rejected">Просрочено</span>
+                        {% elif d.task.criterion.value == "global_mission" %}<span class="status-badge status-badge--waiting">Оценивается в конце</span>
+                        {% else %}<span class="status-badge status-badge--waiting">Ожидается</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{{ d.points_awarded if d.points_awarded is not none else "—" }}</td>
+                    <td data-label="Сдача">
+                        {% if d.submission_items %}
+                        <div class="submission-list">
+                            {% for item in d.submission_items %}
+                            {% if item.photo_key %}
+                            <a href="{{ submission_urls[item.id] }}" target="_blank" rel="noopener" class="submission-chip" onclick="event.stopPropagation();">{{ icons.svg("image", 13) }} Фото</a>
+                            {% endif %}
+                            {% if item.video_key %}
+                            <a href="{{ submission_urls[item.id] }}" target="_blank" rel="noopener" class="submission-chip" onclick="event.stopPropagation();">{{ icons.svg("video", 13) }} Видео</a>
+                            {% endif %}
+                            {% if item.text %}
+                            <span class="submission-chip submission-chip--text">{{ icons.svg("message-square", 13) }} {{ item.text }}</span>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <span class="muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="muted">Этой команде ещё не приходило ни одного задания.</p>
+        {% endif %}
+    </section>
+
+    <section class="detail-card">
         <h2 class="section-title">{{ icons.svg("users", 17) }} Состав</h2>
         {% if team.members %}
         <div class="table-scroll">

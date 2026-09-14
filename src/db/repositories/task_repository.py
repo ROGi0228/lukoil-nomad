@@ -329,11 +329,16 @@ async def list_dispatches_with_short_code(session: AsyncSession) -> list[TaskDis
 
 
 async def list_dispatches_for_team(session: AsyncSession, team_id: int) -> list[TaskDispatch]:
-    """Все задания, полученные этой командой — для команды бота «Мои задания»."""
+    """Все задания, полученные этой командой — для команды бота «Мои задания» и
+    для страницы команды в админке (submission_items — чтобы показать вложения
+    сдачи без отдельного запроса на каждый диспетч)."""
     result = await session.execute(
         select(TaskDispatch)
         .where(TaskDispatch.team_id == team_id)
-        .options(selectinload(TaskDispatch.task))
+        .options(
+            selectinload(TaskDispatch.task),
+            selectinload(TaskDispatch.submission_items),
+        )
         .order_by(TaskDispatch.sent_at.desc())
     )
     return list(result.scalars().all())

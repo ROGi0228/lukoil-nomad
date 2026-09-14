@@ -10,12 +10,14 @@ from src.admin_panel.display import format_dt
 from src.admin_panel.notify_helpers import notify_new_team_members
 from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
+from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
 from src.db.repositories.application_repository import (
     get_application,
     get_application_contact,
     list_unassigned_applications,
 )
+from src.db.repositories.task_repository import list_dispatches_for_team
 from src.db.repositories.team_repository import (
     add_point_adjustment,
     create_team,
@@ -26,6 +28,7 @@ from src.db.repositories.team_repository import (
     list_teams,
 )
 from src.db.session import async_session_factory
+from src.services.storage.s3_storage import S3Storage
 
 router = APIRouter(prefix="/teams")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
@@ -90,6 +93,18 @@ async def team_detail(
         score = await get_team_score(session, team_id)
         unassigned = await list_unassigned_applications(session)
         adjustments = await list_point_adjustments(session, team_id)
+        dispatches = await list_dispatches_for_team(session, team_id)
+
+    storage = S3Storage(get_settings())
+    submission_urls: dict[int, str] = {}
+    for dispatch in dispatches:
+        for item in dispatch.submission_items:
+            if item.photo_key:
+                submission_urls[item.id] = await storage.presigned_url(item.photo_key)
+            elif item.video_key:
+                submission_urls[item.id] = await storage.presigned_url(item.video_key)
+
+    tasks_points_total = sum(d.points_awarded or 0 for d in dispatches)
 
     return templates.TemplateResponse(
         request,
@@ -101,6 +116,9 @@ async def team_detail(
             "score": score,
             "unassigned": unassigned,
             "adjustments": adjustments,
+            "dispatches": dispatches,
+            "submission_urls": submission_urls,
+            "tasks_points_total": tasks_points_total,
         },
     )
 
