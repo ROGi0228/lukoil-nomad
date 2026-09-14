@@ -12,17 +12,18 @@
 <div class="stack">
     <section class="detail-card">
         <h2 class="section-title">{{ icons.svg("clipboard-list", 17) }} Задания команды</h2>
-        {% if dispatches %}
-        <p class="total-count">{{ icons.svg("trophy", 13) }} Баллов за задания: <strong>{{ tasks_points_total }}</strong> <span class="muted">(плюс ручные корректировки — см. «Баллы» ниже — в общий счёт {{ score }})</span></p>
+        {% if rows %}
+        <p class="total-count">{{ icons.svg("trophy", 13) }} Баллов за задания: <strong>{{ tasks_points_total }}</strong> <span class="muted">(включая личные задания участников — плюс ручные корректировки ниже дают общий счёт {{ score }})</span></p>
         <div class="table-scroll">
         <table class="applications-table">
             <thead>
-                <tr><th>Задание</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th><th>Сдача</th></tr>
+                <tr><th>Задание</th><th>Кому</th><th>Отправлено</th><th>Выполнено</th><th>Баллы</th><th>Сдача</th></tr>
             </thead>
             <tbody>
-                {% for d in dispatches %}
+                {% for d, owner in rows %}
                 <tr onclick="window.location='/tasks/{{ d.task_id }}'" class="clickable-row">
                     <td data-label="Задание"><a href="/tasks/{{ d.task_id }}" class="table-link">{% if d.task.short_code %}{{ d.task.short_code }} — {% endif %}{{ d.task.title }}</a></td>
+                    <td data-label="Кому">{% if owner %}{{ owner }} <span class="muted">(личное)</span>{% else %}Вся команда{% endif %}</td>
                     <td data-label="Отправлено">{{ d.sent_at | format_dt }}</td>
                     <td data-label="Выполнено">
                         {% if d.completed_at %}{{ d.completed_at | format_dt }}

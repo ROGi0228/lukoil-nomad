@@ -12,12 +12,16 @@ from src.bot.i18n import resolve_lang, t
 from src.bot.notify import notify_user
 from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
+from src.db.models.task_dispatch import TaskDispatch
 from src.db.repositories.application_repository import (
     get_application,
     get_application_contact,
     list_unassigned_applications,
 )
-from src.db.repositories.task_repository import list_dispatches_for_team
+from src.db.repositories.task_repository import (
+    list_dispatches_for_application,
+    list_dispatches_for_team,
+)
 from src.db.repositories.team_repository import (
     add_point_adjustment,
     create_team,
@@ -93,18 +97,27 @@ async def team_detail(
         score = await get_team_score(session, team_id)
         unassigned = await list_unassigned_applications(session)
         adjustments = await list_point_adjustments(session, team_id)
-        dispatches = await list_dispatches_for_team(session, team_id)
+        team_dispatches = await list_dispatches_for_team(session, team_id)
+
+        # Личные задания участников (Task.is_personal) тоже идут в счёт команды
+        # (см. get_team_score), поэтому показываем их здесь же — иначе "баллы за
+        # задания" на этой странице не сходились бы с общим счётом наверху.
+        rows: list[tuple[TaskDispatch, str | None]] = [(d, None) for d in team_dispatches]
+        for member in team.members:
+            personal_dispatches = await list_dispatches_for_application(session, member.id)
+            rows.extend((d, member.full_name) for d in personal_dispatches)
+        rows.sort(key=lambda row: row[0].sent_at, reverse=True)
 
     storage = S3Storage(get_settings())
     submission_urls: dict[int, str] = {}
-    for dispatch in dispatches:
+    for dispatch, _owner in rows:
         for item in dispatch.submission_items:
             if item.photo_key:
                 submission_urls[item.id] = await storage.presigned_url(item.photo_key)
             elif item.video_key:
                 submission_urls[item.id] = await storage.presigned_url(item.video_key)
 
-    tasks_points_total = sum(d.points_awarded or 0 for d in dispatches)
+    tasks_points_total = sum(d.points_awarded or 0 for d, _owner in rows)
 
     return templates.TemplateResponse(
         request,
@@ -116,7 +129,7 @@ async def team_detail(
             "score": score,
             "unassigned": unassigned,
             "adjustments": adjustments,
-            "dispatches": dispatches,
+            "rows": rows,
             "submission_urls": submission_urls,
             "tasks_points_total": tasks_points_total,
         },

@@ -348,11 +348,15 @@ async def list_dispatches_for_application(
     session: AsyncSession, application_id: int
 ) -> list[TaskDispatch]:
     """Личные задания этого участника (Task.is_personal) — для команды бота «Мои
-    задания», доступны и тем, кто ещё не распределён в команду."""
+    задания» (доступны и тем, кто ещё не распределён в команду) и для страницы
+    команды в админке, где они тоже учитываются в счёте команды."""
     result = await session.execute(
         select(TaskDispatch)
         .where(TaskDispatch.application_id == application_id)
-        .options(selectinload(TaskDispatch.task))
+        .options(
+            selectinload(TaskDispatch.task),
+            selectinload(TaskDispatch.submission_items),
+        )
         .order_by(TaskDispatch.sent_at.desc())
     )
     return list(result.scalars().all())
