@@ -833,6 +833,15 @@ h1, h2, h3 {
     font-size: 0.88rem;
 }
 
+/* Превью текста рассылки в истории — одна строка с многоточием (полный текст,
+   в т.ч. HTML-теги форматирования, доступен наведением через title). */
+.broadcast-text-preview {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Полный текст задания (task.description) — переносы строк из исходного текста
    сохраняем как есть (white-space: pre-wrap), а не сворачиваем в один абзац, как
    раньше было в topbar__subtitle. */

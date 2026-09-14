@@ -118,7 +118,7 @@
                     {% endif %}
                 </td>
                 <td data-label="Кому">{{ b.audience_label }}</td>
-                <td data-label="Текст" style="max-width: 320px; white-space: normal; word-break: break-word;">{{ b.message }}</td>
+                <td data-label="Текст" class="broadcast-text-preview" title="{{ b.message }}">{{ b.message | striptags | truncate(110, True, '…') }}</td>
                 <td data-label="Получателей" style="font-family: var(--font-mono);">{% if b.sent_at %}{{ history_counts[b.id] }}{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>
                     {% if not b.sent_at %}
