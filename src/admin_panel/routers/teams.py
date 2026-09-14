@@ -24,11 +24,13 @@ from src.db.repositories.task_repository import (
 from src.db.repositories.team_repository import (
     add_point_adjustment,
     create_team,
+    get_point_adjustment,
     get_team,
     get_team_score,
     list_point_adjustments,
     list_team_member_contacts,
     list_teams,
+    update_point_adjustment,
 )
 from src.db.session import async_session_factory
 from src.services.storage.s3_storage import S3Storage
@@ -167,6 +169,59 @@ async def adjust_points_route(
     bot: Bot = request.app.state.bot
     for telegram_id, _language in contacts:
         await notify_user(bot, telegram_id, reason)
+
+    return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/{team_id}/adjustments/{adjustment_id}/edit", response_class=HTMLResponse)
+async def edit_point_adjustment_form(
+    team_id: int,
+    adjustment_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+) -> HTMLResponse:
+    async with async_session_factory() as session:
+        team = await get_team(session, team_id)
+        adjustment = await get_point_adjustment(session, adjustment_id)
+        if team is None or adjustment is None or adjustment.team_id != team_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return templates.TemplateResponse(
+        request,
+        "adjustment_edit.html",
+        {
+            "admin": admin,
+            "csrf_token": get_csrf_token(request),
+            "team": team,
+            "adjustment": adjustment,
+        },
+    )
+
+
+@router.post("/{team_id}/adjustments/{adjustment_id}/edit", response_model=None)
+async def edit_point_adjustment_route(
+    team_id: int,
+    adjustment_id: int,
+    request: Request,
+    points: int = Form(...),
+    reason: str = Form(...),
+    notify: bool = Form(default=False),
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    async with async_session_factory() as session:
+        adjustment = await get_point_adjustment(session, adjustment_id)
+        if adjustment is None or adjustment.team_id != team_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        await update_point_adjustment(adjustment, points=points, reason=reason)
+        await session.commit()
+
+        contacts = await list_team_member_contacts(session, team_id) if notify else []
+
+    if notify:
+        bot: Bot = request.app.state.bot
+        for telegram_id, _language in contacts:
+            await notify_user(bot, telegram_id, reason)
 
     return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
 

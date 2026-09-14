@@ -85,6 +85,22 @@ async def add_point_adjustment(
     return adjustment
 
 
+async def get_point_adjustment(
+    session: AsyncSession, adjustment_id: int
+) -> TeamPointAdjustment | None:
+    return await session.get(TeamPointAdjustment, adjustment_id)
+
+
+async def update_point_adjustment(
+    adjustment: TeamPointAdjustment, *, points: int, reason: str
+) -> None:
+    """Правит уже созданную корректировку — например, координатор ошибся в числе
+    баллов или тексте. Счёт команды пересчитывается сам при следующем чтении
+    (get_team_score суммирует построчно, отдельного кеша нет)."""
+    adjustment.points = points
+    adjustment.reason = reason
+
+
 async def list_point_adjustments(session: AsyncSession, team_id: int) -> list[TeamPointAdjustment]:
     result = await session.execute(
         select(TeamPointAdjustment)

@@ -133,7 +133,7 @@
         {% if adjustments %}
         <div class="table-scroll" style="margin-top: 1rem;">
         <table class="applications-table">
-            <thead><tr><th>Когда</th><th>Кто</th><th>Баллы</th><th>Причина</th></tr></thead>
+            <thead><tr><th>Когда</th><th>Кто</th><th>Баллы</th><th>Причина</th><th></th></tr></thead>
             <tbody>
                 {% for a in adjustments %}
                 <tr>
@@ -141,6 +141,7 @@
                     <td data-label="Кто">{{ a.admin_user.username }}</td>
                     <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
                     <td data-label="Причина" class="task-description">{{ a.reason }}</td>
+                    <td><a href="/teams/{{ team.id }}/adjustments/{{ a.id }}/edit" class="table-link">{{ icons.svg("pencil", 13) }} Изменить</a></td>
                 </tr>
                 {% endfor %}
             </tbody>
