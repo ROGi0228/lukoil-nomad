@@ -317,11 +317,14 @@ async def score_dispatch(
     request: Request,
     points: int = Form(...),
     notify: bool = Form(default=False),
+    message: str = Form(default=""),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
-    """criterion=MANUAL — админ проставляет баллы за диспетч вручную (голосование по
-    лайкам, секундомер координатора на месте, финальный зачёт глобальных миссий)."""
+    """Проставляет/меняет баллы за диспетч вручную — для criterion=MANUAL это
+    единственный способ (голосование по лайкам, секундомер координатора на месте,
+    финальный зачёт глобальных миссий), для остальных критериев — переставить уже
+    готовое место (например, если не все команды успели сдать на момент подсчёта)."""
     async with async_session_factory() as session:
         dispatch = await get_dispatch(session, dispatch_id)
         task = await get_task(session, task_id)
@@ -335,9 +338,12 @@ async def score_dispatch(
         bot: Bot = request.app.state.bot
         for telegram_id, language in contacts:
             lang = resolve_lang(language)
-            await notify_user(
-                bot, telegram_id, t(lang, "team_task_score_set", title=task.title, points=points)
+            text = (
+                message
+                if message.strip()
+                else t(lang, "team_task_score_set", title=task.title, points=points)
             )
+            await notify_user(bot, telegram_id, text)
 
     return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
 

@@ -108,7 +108,7 @@
                     {% endif %}
                 </td>
                 <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">
-                    {% if task.criterion.value in ("manual", "global_mission", "global_mission_submit") %}
+                    {% if task.criterion.value in ("manual", "global_mission", "global_mission_submit") or d.completed_at %}
                     <form method="post" action="/tasks/{{ task.id }}/dispatch/{{ d.id }}/score" class="form-row" style="align-items: flex-end;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="number" name="points" value="{{ d.points_awarded if d.points_awarded is not none else 0 }}" style="width: 80px;">
@@ -116,6 +116,7 @@
                             <input type="checkbox" name="notify" value="true" checked> Увед.
                         </label>
                         <button type="submit" class="action-button action-button--secondary">{{ icons.svg("check", 13) }}</button>
+                        <textarea name="message" rows="2" placeholder="Текст уведомления (необязательно — иначе стандартный про баллы)" style="width: 100%; margin-top: 0.4rem;"></textarea>
                     </form>
                     {% else %}
                     {{ d.points_awarded if d.points_awarded is not none else "—" }}
