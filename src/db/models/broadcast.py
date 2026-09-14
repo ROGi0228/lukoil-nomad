@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import datetime as dt
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.models.base import Base, TimestampMixin
@@ -13,7 +14,10 @@ if TYPE_CHECKING:
 
 class Broadcast(Base, TimestampMixin):
     """Одна рассылка из /broadcast — хранится, чтобы можно было посмотреть историю
-    и отозвать сообщения, если админ ошибся в тексте или аудитории."""
+    и отозвать сообщения, если админ ошибся в тексте или аудитории. Может быть
+    отправлена сразу (send_at = момент создания, sent_at выставляется в том же
+    запросе) или отложена на будущее (send_at в будущем, sent_at NULL, пока крон
+    send_scheduled_broadcasts её не заберёт и не разошлёт)."""
 
     __tablename__ = "broadcasts"
 
@@ -24,6 +28,17 @@ class Broadcast(Base, TimestampMixin):
     # не искажало историю задним числом.
     audience_label: Mapped[str] = mapped_column(String(150))
     admin_user_id: Mapped[int] = mapped_column(ForeignKey("admin_users.id"))
+
+    # Структурные поля аудитории (в отличие от audience_label выше) — нужны, чтобы
+    # у отложенной рассылки крон мог заново вычислить актуальных получателей в
+    # момент фактической отправки, а не на момент планирования.
+    audience: Mapped[str] = mapped_column(String(20), default="all", server_default="all")
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"))
+    participant_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id"))
+
+    send_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    # NULL — ещё не отправлена (ждёт своего send_at, см. send_scheduled_broadcasts).
+    sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
     admin_user: Mapped[AdminUser] = relationship()
 

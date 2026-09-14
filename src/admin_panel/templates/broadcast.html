@@ -10,6 +10,12 @@
 {% if sent_count is not none %}
 <p class="flash-banner">{{ icons.svg("check", 16) }} Отправлено {{ sent_count }} участникам.</p>
 {% endif %}
+{% if scheduled is not none %}
+<p class="flash-banner">{{ icons.svg("check", 16) }} Рассылка запланирована — уйдёт автоматически в указанное время.</p>
+{% endif %}
+{% if cancelled is not none %}
+<p class="flash-banner">{{ icons.svg("check", 16) }} Запланированная рассылка отменена.</p>
+{% endif %}
 {% if deleted is not none %}
 <p class="flash-banner">{{ icons.svg("check", 16) }} Удалено сообщений: {{ deleted }} из {{ total }}.</p>
 {% endif %}
@@ -61,8 +67,32 @@
         <textarea id="broadcast-message" name="message" rows="6" placeholder="Текст сообщения" required>{{ form.message }}</textarea>
     </div>
 
+    <p class="field-group-label">Когда отправить</p>
+    <div class="audience-picker">
+        <label class="radio-row">
+            <input type="radio" name="schedule_mode" value="now" {% if form.schedule_mode == "now" %}checked{% endif %}>
+            {{ icons.svg("send", 15) }} Сейчас
+        </label>
+        <label class="radio-row">
+            <input type="radio" name="schedule_mode" value="later" {% if form.schedule_mode == "later" %}checked{% endif %}>
+            {{ icons.svg("clock", 15) }} По расписанию
+        </label>
+    </div>
+
+    <div class="conditional-field conditional-field--later form-row">
+        <div class="form-field">
+            <label for="broadcast-send-date">Дата отправки</label>
+            <input type="date" id="broadcast-send-date" name="send_date" value="{{ form.send_date }}">
+        </div>
+        <div class="form-field">
+            <label for="broadcast-send-time">Время отправки</label>
+            <input type="time" id="broadcast-send-time" name="send_time" value="{{ form.send_time }}">
+        </div>
+    </div>
+    <p class="field-hint" style="margin-bottom: 0.9rem;">Получатели («Кому» выше) определяются заново в момент фактической отправки — если к тому времени кто-то ещё зарегистрируется или попадёт в команду, сообщение получит и он.</p>
+
     {% if recipient_count is not none %}
-    <p class="total-count">{{ icons.svg("users", 13) }} Получателей: <strong>{{ recipient_count }}</strong></p>
+    <p class="total-count">{{ icons.svg("users", 13) }} Получателей сейчас: <strong>{{ recipient_count }}</strong></p>
     {% endif %}
 
     <div class="inline-form">
@@ -82,12 +112,21 @@
         <tbody>
             {% for b in history %}
             <tr>
-                <td data-label="Когда">{{ b.created_at | format_dt }}</td>
+                <td data-label="Когда">
+                    {% if b.sent_at %}{{ b.sent_at | format_dt }}
+                    {% else %}{{ b.send_at | format_dt }} <span class="status-badge status-badge--waiting">Запланировано</span>
+                    {% endif %}
+                </td>
                 <td data-label="Кому">{{ b.audience_label }}</td>
                 <td data-label="Текст" style="max-width: 320px; white-space: normal; word-break: break-word;">{{ b.message }}</td>
-                <td data-label="Получателей" style="font-family: var(--font-mono);">{{ history_counts[b.id] }}</td>
+                <td data-label="Получателей" style="font-family: var(--font-mono);">{% if b.sent_at %}{{ history_counts[b.id] }}{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>
-                    {% if history_counts[b.id] %}
+                    {% if not b.sent_at %}
+                    <form method="post" action="/broadcast/{{ b.id }}/cancel" class="inline-form" onsubmit="return confirm('Отменить запланированную рассылку? Она не уйдёт получателям.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 14) }} Отменить</button>
+                    </form>
+                    {% elif history_counts[b.id] %}
                     <form method="post" action="/broadcast/{{ b.id }}/delete" class="inline-form" onsubmit="return confirm('Удалить это сообщение у всех получателей ({{ history_counts[b.id] }})? Действие необратимо, и сработает только для сообщений младше 48 часов.');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit" class="action-button action-button--reject">{{ icons.svg("trash", 14) }} Удалить</button>

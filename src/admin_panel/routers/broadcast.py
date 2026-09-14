@@ -1,8 +1,10 @@
+import datetime as dt
+from zoneinfo import ZoneInfo
+
 from aiogram import Bot
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status as http_status
 
 from src.admin_panel.auth import get_current_admin
@@ -12,38 +14,28 @@ from src.bot.notify import notify_user, try_delete_message
 from src.db.models.admin_user import AdminUser
 from src.db.models.application import Application
 from src.db.models.team import Team
-from src.db.repositories.application_repository import (
-    get_application_contact,
-    list_all_applications,
-    list_all_applications_contacts,
-)
+from src.db.repositories.application_repository import list_all_applications
 from src.db.repositories.broadcast_repository import (
     add_broadcast_message,
     create_broadcast,
+    get_broadcast,
     list_broadcast_messages,
     list_broadcasts,
+    resolve_broadcast_contacts,
 )
-from src.db.repositories.team_repository import list_team_member_contacts, list_teams
+from src.db.repositories.team_repository import list_teams
 from src.db.session import async_session_factory
 
 router = APIRouter(prefix="/broadcast")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
 templates.env.filters["format_dt"] = format_dt
 
+_ALMATY_TZ = ZoneInfo("Asia/Almaty")
 
-async def _resolve_contacts(
-    session: AsyncSession, audience: str, team: str, participant: str
-) -> list[tuple[int, str | None]]:
-    if audience == "team":
-        if not team:
-            return []
-        return await list_team_member_contacts(session, int(team))
-    if audience == "participant":
-        if not participant:
-            return []
-        contact = await get_application_contact(session, int(participant))
-        return [contact] if contact else []
-    return await list_all_applications_contacts(session)
+
+def _to_utc(date_str: str, time_str: str) -> dt.datetime:
+    naive = dt.datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    return naive.replace(tzinfo=_ALMATY_TZ).astimezone(dt.UTC)
 
 
 def _audience_label(
@@ -64,6 +56,8 @@ async def broadcast_page(
     sent: int | None = None,
     deleted: int | None = None,
     total: int | None = None,
+    scheduled: int | None = None,
+    cancelled: int | None = None,
     admin: AdminUser = Depends(get_current_admin),
 ) -> HTMLResponse:
     async with async_session_factory() as session:
@@ -84,9 +78,19 @@ async def broadcast_page(
             "sent_count": sent,
             "deleted": deleted,
             "total": total,
+            "scheduled": scheduled,
+            "cancelled": cancelled,
             "history": history,
             "history_counts": history_counts,
-            "form": {"audience": "all", "team": "", "participant": "", "message": ""},
+            "form": {
+                "audience": "all",
+                "team": "",
+                "participant": "",
+                "message": "",
+                "schedule_mode": "now",
+                "send_date": "",
+                "send_time": "",
+            },
         },
     )
 
@@ -99,20 +103,57 @@ async def broadcast_submit(
     team: str = Form(""),
     participant: str = Form(""),
     message: str = Form(""),
+    schedule_mode: str = Form("now"),
+    send_date: str = Form(""),
+    send_time: str = Form(""),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> HTMLResponse | RedirectResponse:
+    team_id = int(team) if team else None
+    participant_id = int(participant) if participant else None
+
     async with async_session_factory() as session:
-        contacts = await _resolve_contacts(session, audience, team, participant)
+        contacts = await resolve_broadcast_contacts(
+            session, audience=audience, team_id=team_id, participant_id=participant_id
+        )
         teams = await list_teams(session)
         participants = await list_all_applications(session)
 
     if action == "send" and message.strip():
-        bot: Bot = request.app.state.bot
         label = _audience_label(audience, team, participant, teams, participants)
+
+        if schedule_mode == "later" and send_date and send_time:
+            send_at = _to_utc(send_date, send_time)
+            async with async_session_factory() as session:
+                await create_broadcast(
+                    session,
+                    message=message,
+                    audience_label=label,
+                    admin_user_id=admin.id,
+                    audience=audience,
+                    team_id=team_id,
+                    participant_id=participant_id,
+                    send_at=send_at,
+                    sent_at=None,
+                )
+                await session.commit()
+            return RedirectResponse(
+                "/broadcast?scheduled=1", status_code=http_status.HTTP_303_SEE_OTHER
+            )
+
+        bot: Bot = request.app.state.bot
+        now = dt.datetime.now(dt.UTC)
         async with async_session_factory() as session:
             broadcast = await create_broadcast(
-                session, message=message, audience_label=label, admin_user_id=admin.id
+                session,
+                message=message,
+                audience_label=label,
+                admin_user_id=admin.id,
+                audience=audience,
+                team_id=team_id,
+                participant_id=participant_id,
+                send_at=now,
+                sent_at=now,
             )
             await session.commit()
             for telegram_id, _language in contacts:
@@ -152,9 +193,32 @@ async def broadcast_submit(
                 "team": team,
                 "participant": participant,
                 "message": message,
+                "schedule_mode": schedule_mode,
+                "send_date": send_date,
+                "send_time": send_time,
             },
         },
     )
+
+
+@router.post("/{broadcast_id}/cancel", response_model=None)
+async def cancel_scheduled_broadcast(
+    broadcast_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Отменяет ещё не отправленную запланированную рассылку — удаляет её целиком,
+    так как отправленных сообщений (BroadcastMessage) у неё ещё нет."""
+    async with async_session_factory() as session:
+        broadcast = await get_broadcast(session, broadcast_id)
+        if broadcast is None:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND)
+        if broadcast.sent_at is not None:
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST)
+        await session.delete(broadcast)
+        await session.commit()
+
+    return RedirectResponse("/broadcast?cancelled=1", status_code=http_status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/{broadcast_id}/delete", response_model=None)

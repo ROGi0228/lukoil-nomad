@@ -1,17 +1,71 @@
+import datetime as dt
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.db.models.broadcast import Broadcast, BroadcastMessage
+from src.db.repositories.application_repository import (
+    get_application_contact,
+    list_all_applications_contacts,
+)
+from src.db.repositories.team_repository import list_team_member_contacts
 
 
 async def create_broadcast(
-    session: AsyncSession, *, message: str, audience_label: str, admin_user_id: int
+    session: AsyncSession,
+    *,
+    message: str,
+    audience_label: str,
+    admin_user_id: int,
+    audience: str,
+    team_id: int | None,
+    participant_id: int | None,
+    send_at: dt.datetime,
+    sent_at: dt.datetime | None,
 ) -> Broadcast:
-    broadcast = Broadcast(message=message, audience_label=audience_label, admin_user_id=admin_user_id)
+    broadcast = Broadcast(
+        message=message,
+        audience_label=audience_label,
+        admin_user_id=admin_user_id,
+        audience=audience,
+        team_id=team_id,
+        participant_id=participant_id,
+        send_at=send_at,
+        sent_at=sent_at,
+    )
     session.add(broadcast)
     await session.flush()
     return broadcast
+
+
+async def resolve_broadcast_contacts(
+    session: AsyncSession, *, audience: str, team_id: int | None, participant_id: int | None
+) -> list[tuple[int, str | None]]:
+    """Получатели рассылки — вычисляется заново по сохранённым структурным полям
+    (не audience_label), поэтому для отложенной рассылки крон видит актуальный
+    состав на момент фактической отправки, а не на момент планирования."""
+    if audience == "team":
+        if team_id is None:
+            return []
+        return await list_team_member_contacts(session, team_id)
+    if audience == "participant":
+        if participant_id is None:
+            return []
+        contact = await get_application_contact(session, participant_id)
+        return [contact] if contact else []
+    return await list_all_applications_contacts(session)
+
+
+async def list_pending_broadcasts(session: AsyncSession, now: dt.datetime) -> list[Broadcast]:
+    result = await session.execute(
+        select(Broadcast).where(Broadcast.sent_at.is_(None), Broadcast.send_at <= now)
+    )
+    return list(result.scalars().all())
+
+
+async def mark_broadcast_sent(session: AsyncSession, broadcast: Broadcast, sent_at: dt.datetime) -> None:
+    broadcast.sent_at = sent_at
 
 
 async def add_broadcast_message(

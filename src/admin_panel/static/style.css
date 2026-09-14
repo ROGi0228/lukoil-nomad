@@ -1130,6 +1130,10 @@ h1, h2, h3 {
     display: block;
 }
 
+.broadcast-form:has(input[name="schedule_mode"][value="later"]:checked) .conditional-field--later {
+    display: flex;
+}
+
 .points-form:has(input[name="notify_scope"][value="participant"]:checked) .conditional-field--participant {
     display: block;
 }
