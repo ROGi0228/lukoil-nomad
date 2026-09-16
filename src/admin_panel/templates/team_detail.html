@@ -104,7 +104,7 @@
             <div class="form-field">
                 <label for="adjust-reason">Причина</label>
                 <textarea id="adjust-reason" name="reason" rows="3" placeholder="Например, снят штраф — дедлайн продлили" required></textarea>
-                <p class="field-hint">Уходит команде как есть, без добавленного текста вроде «начислены баллы: +N» — если нужно упомянуть баллы, пишите прямо здесь. Можно писать несколько строк.</p>
+                <p class="field-hint">Уходит команде как есть, без добавленного текста вроде «начислены баллы: +N» — если нужно упомянуть баллы, пишите прямо здесь. Можно писать несколько строк. Необязательно, если выбрано «без уведомления».</p>
             </div>
 
             <p class="field-group-label">Уведомить</p>
@@ -154,6 +154,19 @@
 
             <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Применить</button>
         </form>
+        <script>
+        (function () {
+            var form = document.querySelector(".points-form");
+            var reason = form.querySelector("#adjust-reason");
+            var radios = form.querySelectorAll('input[name="notify_scope"]');
+            function sync() {
+                var checked = form.querySelector('input[name="notify_scope"]:checked');
+                reason.required = !checked || checked.value !== "none";
+            }
+            radios.forEach(function (r) { r.addEventListener("change", sync); });
+            sync();
+        })();
+        </script>
 
         {% if adjustments %}
         <div class="table-scroll" style="margin-top: 1rem;">

@@ -66,5 +66,20 @@
 
         <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Сохранить</button>
     </form>
+    {% if not adjustment.applied_at %}
+    <script>
+    (function () {
+        var form = document.querySelector(".adjustment-form");
+        var reason = form.querySelector("#edit-adjust-reason");
+        var radios = form.querySelectorAll('input[name="notify_scope"]');
+        function sync() {
+            var checked = form.querySelector('input[name="notify_scope"]:checked');
+            reason.required = !checked || checked.value !== "none";
+        }
+        radios.forEach(function (r) { r.addEventListener("change", sync); });
+        sync();
+    })();
+    </script>
+    {% endif %}
 </section>
 {% endblock %}
