@@ -10,7 +10,7 @@
 <a class="back-link" href="/broadcast">{{ icons.svg("chevron-left", 15) }} К рассылкам</a>
 
 <section class="detail-card">
-    <form method="post" action="/broadcast/{{ broadcast.id }}/edit" class="broadcast-form">
+    <form method="post" action="/broadcast/{{ broadcast.id }}/edit" class="broadcast-form" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
         <p class="field-group-label">Кому</p>
@@ -59,6 +59,26 @@
         <div class="form-field">
             <label for="broadcast-message">Текст сообщения</label>
             <textarea id="broadcast-message" name="message" rows="8" required>{{ form.message }}</textarea>
+        </div>
+
+        <div class="form-field">
+            <label for="broadcast-attachment">Фото или видео к рассылке (опционально)</label>
+            {% if attachment_url %}
+            <p class="section-intro" style="margin: 0 0 0.5rem;">
+                {% if broadcast.attachment_photo_key %}
+                <a href="{{ attachment_url }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("image", 13) }} Текущее фото</a>
+                {% else %}
+                <a href="{{ attachment_url }}" target="_blank" rel="noopener" class="submission-chip">{{ icons.svg("video", 13) }} Текущее видео</a>
+                {% endif %}
+            </p>
+            {% endif %}
+            <input type="file" id="broadcast-attachment" name="attachment" accept="image/*,video/*">
+            <p class="field-hint">Выберите новый файл, чтобы заменить текущий.</p>
+            {% if attachment_url %}
+            <label class="checkbox-row">
+                <input type="checkbox" name="remove_attachment" value="true"> Убрать вложение
+            </label>
+            {% endif %}
         </div>
 
         <p class="field-group-label">Когда отправить</p>

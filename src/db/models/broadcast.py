@@ -40,6 +40,11 @@ class Broadcast(Base, TimestampMixin):
     # NULL — ещё не отправлена (ждёт своего send_at, см. send_scheduled_broadcasts).
     sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Фото или видео к рассылке (как у Task) — взаимоисключающие, уходит вместе с
+    # текстом как caption (bot.send_photo/send_video) вместо обычного send_message.
+    attachment_photo_key: Mapped[str | None] = mapped_column(String(255))
+    attachment_video_key: Mapped[str | None] = mapped_column(String(255))
+
     admin_user: Mapped[AdminUser] = relationship()
 
 

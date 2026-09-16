@@ -24,7 +24,7 @@
 {% endif %}
 
 <div class="stack">
-<form method="post" action="/broadcast" class="detail-card broadcast-form">
+<form method="post" action="/broadcast" class="detail-card broadcast-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
     <p class="field-group-label">Кому</p>
@@ -73,6 +73,12 @@
     <div class="form-field">
         <label for="broadcast-message">Текст сообщения</label>
         <textarea id="broadcast-message" name="message" rows="6" placeholder="Текст сообщения" required>{{ form.message }}</textarea>
+    </div>
+
+    <div class="form-field">
+        <label for="broadcast-attachment">Фото или видео к рассылке (опционально)</label>
+        <input type="file" id="broadcast-attachment" name="attachment" accept="image/*,video/*">
+        <p class="field-hint">Уйдёт вместе с текстом одним сообщением (текст — подписью к фото/видео), вместо обычного текстового.</p>
     </div>
 
     <p class="field-group-label">Когда отправить</p>
@@ -126,7 +132,10 @@
                     {% endif %}
                 </td>
                 <td data-label="Кому">{{ b.audience_label }}</td>
-                <td data-label="Текст" class="broadcast-text-preview" title="{{ b.message }}">{{ b.message | striptags | truncate(110, True, '…') }}</td>
+                <td data-label="Текст" class="broadcast-text-preview" title="{{ b.message }}">
+                    {% if b.attachment_photo_key %}{{ icons.svg("image", 13) }}{% elif b.attachment_video_key %}{{ icons.svg("video", 13) }}{% endif %}
+                    {{ b.message | striptags | truncate(110, True, '…') }}
+                </td>
                 <td data-label="Получателей" style="font-family: var(--font-mono);">{% if b.sent_at %}{{ history_counts[b.id] }}{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>
                     {% if not b.sent_at %}

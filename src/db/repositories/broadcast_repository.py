@@ -40,6 +40,16 @@ async def create_broadcast(
     return broadcast
 
 
+def set_broadcast_attachment(
+    broadcast: Broadcast, *, photo_key: str | None = None, video_key: str | None = None
+) -> None:
+    """Прикрепляет/заменяет/убирает фото или видео рассылки. Отдельно от
+    create_broadcast, так как ключ в S3 строится из broadcast.id, а он появляется
+    только после первого flush (см. set_task_attachment — тот же приём)."""
+    broadcast.attachment_photo_key = photo_key
+    broadcast.attachment_video_key = video_key
+
+
 async def resolve_broadcast_contacts(
     session: AsyncSession, *, audience: str, team_id: int | None, participant_id: int | None
 ) -> list[tuple[int, str | None]]:
@@ -82,7 +92,8 @@ async def update_broadcast(
     send_at: dt.datetime,
 ) -> None:
     """Правит ещё не отправленную (sent_at IS NULL) запланированную рассылку —
-    вызывающий код обязан проверить это перед вызовом, здесь не перепроверяется."""
+    вызывающий код обязан проверить это перед вызовом, здесь не перепроверяется.
+    Вложение правится отдельно, через set_broadcast_attachment (см. там же)."""
     broadcast.message = message
     broadcast.audience_label = audience_label
     broadcast.audience = audience

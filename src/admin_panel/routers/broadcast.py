@@ -2,7 +2,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette import status as http_status
@@ -10,7 +10,8 @@ from starlette import status as http_status
 from src.admin_panel.auth import get_current_admin
 from src.admin_panel.csrf import csrf_protect, get_csrf_token
 from src.admin_panel.display import format_dt
-from src.bot.notify import notify_user, try_delete_message
+from src.bot.notify import try_delete_message
+from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
 from src.db.models.application import Application
 from src.db.models.team import Team
@@ -22,10 +23,13 @@ from src.db.repositories.broadcast_repository import (
     list_broadcast_messages,
     list_broadcasts,
     resolve_broadcast_contacts,
+    set_broadcast_attachment,
     update_broadcast,
 )
 from src.db.repositories.team_repository import list_teams
 from src.db.session import async_session_factory
+from src.services.storage.s3_storage import S3Storage
+from src.workers.tasks.broadcast_scheduler import send_broadcast_message
 
 router = APIRouter(prefix="/broadcast")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
@@ -42,6 +46,30 @@ def _to_utc(date_str: str, time_str: str) -> dt.datetime:
 def _to_almaty_parts(value: dt.datetime) -> tuple[str, str]:
     local = value.astimezone(_ALMATY_TZ)
     return local.strftime("%Y-%m-%d"), local.strftime("%H:%M")
+
+
+async def _save_attachment(
+    storage: S3Storage, broadcast_id: int, attachment: UploadFile | None
+) -> tuple[str | None, str | None]:
+    """Загружает вложение рассылки в S3, если оно есть, и возвращает (photo_key,
+    video_key) — ровно одно из двух заполнено, по content_type файла. (None, None),
+    если вложения нет вовсе (см. _save_attachment в routers/tasks.py — та же идея)."""
+    if attachment is None or not attachment.filename:
+        return None, None
+
+    content_type = attachment.content_type or ""
+    data = await attachment.read()
+    if not data:
+        return None, None
+
+    if content_type.startswith("video/"):
+        key = f"broadcast_attachments/{broadcast_id}/{attachment.filename}"
+        await storage.upload(key, data, content_type=content_type)
+        return None, key
+
+    key = f"broadcast_attachments/{broadcast_id}/{attachment.filename}"
+    await storage.upload(key, data, content_type=content_type or "image/jpeg")
+    return key, None
 
 
 def _audience_label(
@@ -116,6 +144,7 @@ async def broadcast_submit(
     schedule_mode: str = Form("now"),
     send_date: str = Form(""),
     send_time: str = Form(""),
+    attachment: UploadFile | None = File(default=None),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> HTMLResponse | RedirectResponse:
@@ -131,11 +160,12 @@ async def broadcast_submit(
 
     if action == "send" and message.strip():
         label = _audience_label(audience, team, participant, teams, participants)
+        storage = S3Storage(get_settings())
 
         if schedule_mode == "later" and send_date and send_time:
             send_at = _to_utc(send_date, send_time)
             async with async_session_factory() as session:
-                await create_broadcast(
+                broadcast = await create_broadcast(
                     session,
                     message=message,
                     audience_label=label,
@@ -146,6 +176,10 @@ async def broadcast_submit(
                     send_at=send_at,
                     sent_at=None,
                 )
+                await session.flush()
+                photo_key, video_key = await _save_attachment(storage, broadcast.id, attachment)
+                if photo_key or video_key:
+                    set_broadcast_attachment(broadcast, photo_key=photo_key, video_key=video_key)
                 await session.commit()
             return RedirectResponse(
                 "/broadcast?scheduled=1", status_code=http_status.HTTP_303_SEE_OTHER
@@ -165,9 +199,13 @@ async def broadcast_submit(
                 send_at=now,
                 sent_at=now,
             )
+            await session.flush()
+            photo_key, video_key = await _save_attachment(storage, broadcast.id, attachment)
+            if photo_key or video_key:
+                set_broadcast_attachment(broadcast, photo_key=photo_key, video_key=video_key)
             await session.commit()
             for telegram_id, _language in contacts:
-                sent_message = await notify_user(bot, telegram_id, message)
+                sent_message = await send_broadcast_message(bot, storage, broadcast, telegram_id)
                 if sent_message is not None:
                     await add_broadcast_message(
                         session,
@@ -244,6 +282,13 @@ async def edit_broadcast_form(
 
     send_date, send_time = _to_almaty_parts(broadcast.send_at)
 
+    attachment_url = None
+    storage = S3Storage(get_settings())
+    if broadcast.attachment_photo_key:
+        attachment_url = await storage.presigned_url(broadcast.attachment_photo_key)
+    elif broadcast.attachment_video_key:
+        attachment_url = await storage.presigned_url(broadcast.attachment_video_key)
+
     return templates.TemplateResponse(
         request,
         "broadcast_edit.html",
@@ -253,6 +298,7 @@ async def edit_broadcast_form(
             "broadcast": broadcast,
             "teams": teams,
             "participants": participants,
+            "attachment_url": attachment_url,
             "form": {
                 "audience": broadcast.audience,
                 "team": str(broadcast.team_id) if broadcast.team_id else "",
@@ -274,12 +320,15 @@ async def edit_broadcast_route(
     message: str = Form(""),
     send_date: str = Form(...),
     send_time: str = Form(...),
+    attachment: UploadFile | None = File(default=None),
+    remove_attachment: bool = Form(default=False),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     team_id = int(team) if team else None
     participant_id = int(participant) if participant else None
     send_at = _to_utc(send_date, send_time)
+    storage = S3Storage(get_settings())
 
     async with async_session_factory() as session:
         broadcast = await get_broadcast(session, broadcast_id)
@@ -298,6 +347,13 @@ async def edit_broadcast_route(
             participant_id=participant_id,
             send_at=send_at,
         )
+
+        photo_key, video_key = await _save_attachment(storage, broadcast.id, attachment)
+        if photo_key or video_key:
+            set_broadcast_attachment(broadcast, photo_key=photo_key, video_key=video_key)
+        elif remove_attachment:
+            set_broadcast_attachment(broadcast, photo_key=None, video_key=None)
+
         await session.commit()
 
     return RedirectResponse("/broadcast?edited=1", status_code=http_status.HTTP_303_SEE_OTHER)
