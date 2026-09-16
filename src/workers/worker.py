@@ -10,6 +10,7 @@ from arq.cron import cron
 from src.core.config import get_settings
 from src.core.logging import configure_logging, get_logger
 from src.workers.tasks.broadcast_scheduler import send_scheduled_broadcasts
+from src.workers.tasks.points_scheduler import apply_scheduled_point_adjustments
 from src.workers.tasks.task_scheduler import (
     apply_deadline_penalties,
     dispatch_due_tasks,
@@ -53,7 +54,8 @@ class WorkerSettings:
     # Раз в минуту: разослать задания, у которых наступило время отправки, отправить
     # задания-триггеры командам, выполнившим предыдущее задание, напомнить командам,
     # ещё не сдавшим задание, что дедлайн скоро, оштрафовать тех, кто его просрочил,
-    # и разослать отложенные рассылки (broadcast), у которых наступило время.
+    # разослать отложенные рассылки (broadcast) и применить отложенные корректировки
+    # баллов, у которых наступило время.
     # Ежедневное системное напоминание про глобальные миссии убрано по решению
     # заказчика — вместо него нужные напоминания рассылаются вручную (broadcast).
     cron_jobs: list[Any] = [
@@ -62,6 +64,7 @@ class WorkerSettings:
         cron(send_deadline_reminders),
         cron(apply_deadline_penalties),
         cron(send_scheduled_broadcasts),
+        cron(apply_scheduled_point_adjustments),
     ]
     on_startup = startup
     on_shutdown = shutdown

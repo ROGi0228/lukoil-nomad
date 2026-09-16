@@ -66,7 +66,8 @@ async def get_team_score(session: AsyncSession, team_id: int) -> int:
     )
     adjustment_result = await session.execute(
         select(func.coalesce(func.sum(TeamPointAdjustment.points), 0)).where(
-            TeamPointAdjustment.team_id == team_id
+            TeamPointAdjustment.team_id == team_id,
+            TeamPointAdjustment.applied_at.is_not(None),
         )
     )
     return (
@@ -77,14 +78,74 @@ async def get_team_score(session: AsyncSession, team_id: int) -> int:
 
 
 async def add_point_adjustment(
-    session: AsyncSession, *, team_id: int, points: int, reason: str, admin_user_id: int
+    session: AsyncSession,
+    *,
+    team_id: int,
+    points: int,
+    reason: str,
+    admin_user_id: int,
+    send_at: dt.datetime,
+    applied_at: dt.datetime | None,
+    notify_scope: str,
+    participant_id: int | None,
 ) -> TeamPointAdjustment:
     adjustment = TeamPointAdjustment(
-        team_id=team_id, points=points, reason=reason, admin_user_id=admin_user_id
+        team_id=team_id,
+        points=points,
+        reason=reason,
+        admin_user_id=admin_user_id,
+        send_at=send_at,
+        applied_at=applied_at,
+        notify_scope=notify_scope,
+        participant_id=participant_id,
     )
     session.add(adjustment)
     await session.flush()
     return adjustment
+
+
+async def list_pending_point_adjustments(
+    session: AsyncSession, now: dt.datetime
+) -> list[TeamPointAdjustment]:
+    result = await session.execute(
+        select(TeamPointAdjustment).where(
+            TeamPointAdjustment.applied_at.is_(None), TeamPointAdjustment.send_at <= now
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def apply_point_adjustment(
+    session: AsyncSession, adjustment: TeamPointAdjustment, applied_at: dt.datetime
+) -> None:
+    adjustment.applied_at = applied_at
+    await session.flush()
+
+
+async def resolve_adjustment_contacts(
+    session: AsyncSession, adjustment: TeamPointAdjustment
+) -> list[tuple[int, str | None]]:
+    """Кого уведомлять — вычисляется заново по notify_scope/participant_id, а не
+    на момент планирования (тот же приём, что и resolve_broadcast_contacts)."""
+    if adjustment.notify_scope == "none":
+        return []
+    if adjustment.notify_scope == "participant":
+        if adjustment.participant_id is None:
+            return []
+        result = await session.execute(
+            select(User.telegram_id, User.language)
+            .join(Application, Application.user_id == User.id)
+            .where(Application.id == adjustment.participant_id)
+        )
+        return list(result.tuples())
+    return await list_team_member_contacts(session, adjustment.team_id)
+
+
+async def cancel_point_adjustment(session: AsyncSession, adjustment: TeamPointAdjustment) -> None:
+    """Отменяет ещё не применённую (applied_at IS NULL) запланированную
+    корректировку — удаляет её целиком, вызывающий код обязан проверить
+    applied_at перед вызовом."""
+    await session.delete(adjustment)
 
 
 async def get_point_adjustment(
@@ -94,13 +155,21 @@ async def get_point_adjustment(
 
 
 async def update_point_adjustment(
-    adjustment: TeamPointAdjustment, *, points: int, reason: str
+    adjustment: TeamPointAdjustment,
+    *,
+    points: int,
+    reason: str,
+    send_at: dt.datetime | None = None,
+    notify_scope: str | None = None,
+    participant_id: int | None = None,
 ) -> None:
     """Правит уже созданную корректировку — например, координатор ошибся в числе
     баллов или тексте. Счёт команды пересчитывается сам при следующем чтении
     (get_team_score суммирует построчно, отдельного кеша нет). Текущие значения
-    сохраняются в previous_versions ДО перезаписи, чтобы в админке была видна
-    и исходная версия, а не только последняя."""
+    (points/reason) сохраняются в previous_versions ДО перезаписи, чтобы в
+    админке была видна и исходная версия, а не только последняя. send_at/
+    notify_scope/participant_id — только для ещё не применённой (applied_at
+    IS NULL) корректировки, поэтому передаются отдельно и необязательны."""
     history_entry: dict[str, object] = {
         "points": adjustment.points,
         "reason": adjustment.reason,
@@ -109,6 +178,11 @@ async def update_point_adjustment(
     adjustment.previous_versions = [*(adjustment.previous_versions or []), history_entry]
     adjustment.points = points
     adjustment.reason = reason
+    if send_at is not None:
+        adjustment.send_at = send_at
+    if notify_scope is not None:
+        adjustment.notify_scope = notify_scope
+        adjustment.participant_id = participant_id
 
 
 async def list_point_adjustments(session: AsyncSession, team_id: int) -> list[TeamPointAdjustment]:

@@ -115,6 +115,9 @@
                 <label class="radio-row">
                     <input type="radio" name="notify_scope" value="participant"> {{ icons.svg("message-square", 15) }} Конкретного участника
                 </label>
+                <label class="radio-row">
+                    <input type="radio" name="notify_scope" value="none"> {{ icons.svg("x", 15) }} Без уведомления
+                </label>
             </div>
 
             <div class="conditional-field conditional-field--participant form-field" style="max-width: 320px;">
@@ -127,6 +130,28 @@
                 </select>
             </div>
 
+            <p class="field-group-label">Когда начислить</p>
+            <div class="audience-picker">
+                <label class="radio-row">
+                    <input type="radio" name="schedule_mode" value="now" checked> {{ icons.svg("send", 15) }} Сейчас
+                </label>
+                <label class="radio-row">
+                    <input type="radio" name="schedule_mode" value="later"> {{ icons.svg("clock", 15) }} По расписанию
+                </label>
+            </div>
+
+            <div class="conditional-field conditional-field--later form-row">
+                <div class="form-field">
+                    <label for="adjust-send-date">Дата начисления</label>
+                    <input type="date" id="adjust-send-date" name="send_date">
+                </div>
+                <div class="form-field">
+                    <label for="adjust-send-time">Время начисления</label>
+                    <input type="time" id="adjust-send-time" name="send_time">
+                </div>
+            </div>
+            <p class="field-hint" style="margin-bottom: 0.9rem;">Баллы попадут в счёт команды и уведомление (если выбрано) уйдёт только в указанное время — до этого корректировка просто ждёт в списке ниже.</p>
+
             <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Применить</button>
         </form>
 
@@ -137,7 +162,11 @@
             <tbody>
                 {% for a in adjustments %}
                 <tr>
-                    <td data-label="Когда">{{ a.created_at | format_dt }}</td>
+                    <td data-label="Когда">
+                        {% if a.applied_at %}{{ a.applied_at | format_dt }}
+                        {% else %}{{ a.send_at | format_dt }} <span class="status-badge status-badge--waiting">Запланировано</span>
+                        {% endif %}
+                    </td>
                     <td data-label="Кто">{{ a.admin_user.username }}</td>
                     <td data-label="Баллы" style="font-family: var(--font-mono); font-variant-numeric: tabular-nums;">{% if a.points > 0 %}+{{ a.points }}{% else %}{{ a.points }}{% endif %}</td>
                     <td data-label="Причина" class="task-description">
@@ -151,7 +180,17 @@
                         </details>
                         {% endif %}
                     </td>
-                    <td><a href="/teams/{{ team.id }}/adjustments/{{ a.id }}/edit" class="table-link">{{ icons.svg("pencil", 13) }} Изменить</a></td>
+                    <td>
+                        <div class="table-actions">
+                            <a href="/teams/{{ team.id }}/adjustments/{{ a.id }}/edit" class="table-link">{{ icons.svg("pencil", 13) }} Изменить</a>
+                            {% if not a.applied_at %}
+                            <form method="post" action="/teams/{{ team.id }}/adjustments/{{ a.id }}/cancel" class="inline-form" onsubmit="return confirm('Отменить запланированную корректировку баллов? Баллы не будут начислены.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="action-button action-button--reject">{{ icons.svg("x", 13) }} Отменить</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

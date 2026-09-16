@@ -1,3 +1,6 @@
+import datetime as dt
+from zoneinfo import ZoneInfo
+
 from aiogram import Bot
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,17 +15,14 @@ from src.bot.notify import notify_user
 from src.core.config import get_settings
 from src.db.models.admin_user import AdminUser
 from src.db.models.task_dispatch import TaskDispatch
-from src.db.repositories.application_repository import (
-    get_application,
-    get_application_contact,
-    list_unassigned_applications,
-)
+from src.db.repositories.application_repository import get_application, list_unassigned_applications
 from src.db.repositories.task_repository import (
     list_dispatches_for_application,
     list_dispatches_for_team,
 )
 from src.db.repositories.team_repository import (
     add_point_adjustment,
+    cancel_point_adjustment,
     create_team,
     get_point_adjustment,
     get_team,
@@ -30,6 +30,7 @@ from src.db.repositories.team_repository import (
     list_point_adjustments,
     list_team_member_contacts,
     list_teams,
+    resolve_adjustment_contacts,
     update_point_adjustment,
 )
 from src.db.session import async_session_factory
@@ -38,6 +39,18 @@ from src.services.storage.s3_storage import S3Storage
 router = APIRouter(prefix="/teams")
 templates = Jinja2Templates(directory="src/admin_panel/templates")
 templates.env.filters["format_dt"] = format_dt
+
+_ALMATY_TZ = ZoneInfo("Asia/Almaty")
+
+
+def _to_utc(date_str: str, time_str: str) -> dt.datetime:
+    naive = dt.datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    return naive.replace(tzinfo=_ALMATY_TZ).astimezone(dt.UTC)
+
+
+def _to_almaty_parts(value: dt.datetime) -> tuple[str, str]:
+    local = value.astimezone(_ALMATY_TZ)
+    return local.strftime("%Y-%m-%d"), local.strftime("%H:%M")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -145,30 +158,71 @@ async def adjust_points_route(
     reason: str = Form(...),
     notify_scope: str = Form(default="team"),
     participant_id: str = Form(default=""),
+    schedule_mode: str = Form(default="now"),
+    send_date: str = Form(default=""),
+    send_time: str = Form(default=""),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     """Ручная корректировка баллов — снять ошибочный штраф, начислить бонус и т.п.,
     независимо от конкретного задания. Баллы всегда идут на счёт команды — выбор
-    получателя уведомления (вся команда или один участник) на это не влияет."""
+    получателя уведомления (вся команда, один участник или никто) на это не
+    влияет. Можно начислить сразу или отложить на будущее (applied_at NULL, пока
+    крон apply_scheduled_point_adjustments не заберёт по наступлении send_at) —
+    баллы в счёт команды попадают только после фактического применения."""
+    participant_id_int = int(participant_id) if participant_id else None
+
+    if schedule_mode == "later" and send_date and send_time:
+        send_at = _to_utc(send_date, send_time)
+        applied_at = None
+    else:
+        send_at = dt.datetime.now(dt.UTC)
+        applied_at = send_at
+
     async with async_session_factory() as session:
-        await add_point_adjustment(
-            session, team_id=team_id, points=points, reason=reason, admin_user_id=admin.id
+        adjustment = await add_point_adjustment(
+            session,
+            team_id=team_id,
+            points=points,
+            reason=reason,
+            admin_user_id=admin.id,
+            send_at=send_at,
+            applied_at=applied_at,
+            notify_scope=notify_scope,
+            participant_id=participant_id_int,
         )
         await session.commit()
-
-        if notify_scope == "participant" and participant_id:
-            contact = await get_application_contact(session, int(participant_id))
-            contacts = [contact] if contact else []
-        else:
-            contacts = await list_team_member_contacts(session, team_id)
+        contacts = await resolve_adjustment_contacts(session, adjustment) if applied_at else []
 
     # Причина уходит как есть, без добавленного координатором текста вроде
     # "Вашей команде начислены баллы: +N." — само число баллов, если нужно,
     # координатор пишет в тексте причины (см. плейсхолдер поля выше).
-    bot: Bot = request.app.state.bot
-    for telegram_id, _language in contacts:
-        await notify_user(bot, telegram_id, reason)
+    if applied_at is not None:
+        bot: Bot = request.app.state.bot
+        for telegram_id, _language in contacts:
+            await notify_user(bot, telegram_id, reason)
+
+    return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/{team_id}/adjustments/{adjustment_id}/cancel", response_model=None)
+async def cancel_point_adjustment_route(
+    team_id: int,
+    adjustment_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    _: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    """Отменяет ещё не применённую запланированную корректировку — удаляет
+    целиком, баллы за неё никогда не попадали в счёт команды (applied_at был
+    NULL)."""
+    async with async_session_factory() as session:
+        adjustment = await get_point_adjustment(session, adjustment_id)
+        if adjustment is None or adjustment.team_id != team_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        if adjustment.applied_at is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        await cancel_point_adjustment(session, adjustment)
+        await session.commit()
 
     return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -186,6 +240,8 @@ async def edit_point_adjustment_form(
         if team is None or adjustment is None or adjustment.team_id != team_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+    send_date, send_time = _to_almaty_parts(adjustment.send_at)
+
     return templates.TemplateResponse(
         request,
         "adjustment_edit.html",
@@ -194,6 +250,8 @@ async def edit_point_adjustment_form(
             "csrf_token": get_csrf_token(request),
             "team": team,
             "adjustment": adjustment,
+            "send_date": send_date,
+            "send_time": send_time,
         },
     )
 
@@ -206,13 +264,38 @@ async def edit_point_adjustment_route(
     points: int = Form(...),
     reason: str = Form(...),
     notify: bool = Form(default=False),
+    notify_scope: str = Form(default="team"),
+    participant_id: str = Form(default=""),
+    send_date: str = Form(default=""),
+    send_time: str = Form(default=""),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
+    participant_id_int = int(participant_id) if participant_id else None
+
     async with async_session_factory() as session:
         adjustment = await get_point_adjustment(session, adjustment_id)
         if adjustment is None or adjustment.team_id != team_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+        if adjustment.applied_at is None:
+            # Ещё не применена — можно поправить и время/получателя, уведомление
+            # (если оно вообще нужно) уйдёт кроном при фактическом применении,
+            # а не сейчас.
+            new_send_at = (
+                _to_utc(send_date, send_time) if send_date and send_time else adjustment.send_at
+            )
+            await update_point_adjustment(
+                adjustment,
+                points=points,
+                reason=reason,
+                send_at=new_send_at,
+                notify_scope=notify_scope,
+                participant_id=participant_id_int,
+            )
+            await session.commit()
+            return RedirectResponse(f"/teams/{team_id}", status_code=status.HTTP_303_SEE_OTHER)
+
         await update_point_adjustment(adjustment, points=points, reason=reason)
         await session.commit()
 

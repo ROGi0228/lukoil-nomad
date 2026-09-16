@@ -10,7 +10,7 @@
 <a class="back-link" href="/teams/{{ team.id }}">{{ icons.svg("chevron-left", 15) }} К команде</a>
 
 <section class="detail-card">
-    <form method="post" action="/teams/{{ team.id }}/adjustments/{{ adjustment.id }}/edit">
+    <form method="post" action="/teams/{{ team.id }}/adjustments/{{ adjustment.id }}/edit" class="adjustment-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
         <div class="form-field" style="max-width: 140px;">
@@ -23,9 +23,46 @@
             <textarea id="edit-adjust-reason" name="reason" rows="4" required>{{ adjustment.reason }}</textarea>
         </div>
 
+        {% if not adjustment.applied_at %}
+        <p class="field-group-label">Уведомить</p>
+        <div class="audience-picker">
+            <label class="radio-row">
+                <input type="radio" name="notify_scope" value="team" {% if adjustment.notify_scope == "team" %}checked{% endif %}> {{ icons.svg("users", 15) }} Всю команду
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="notify_scope" value="participant" {% if adjustment.notify_scope == "participant" %}checked{% endif %}> {{ icons.svg("message-square", 15) }} Конкретного участника
+            </label>
+            <label class="radio-row">
+                <input type="radio" name="notify_scope" value="none" {% if adjustment.notify_scope == "none" %}checked{% endif %}> {{ icons.svg("x", 15) }} Без уведомления
+            </label>
+        </div>
+
+        <div class="conditional-field conditional-field--participant form-field" style="max-width: 320px;">
+            <label for="edit-adjust-participant">Участник</label>
+            <select id="edit-adjust-participant" name="participant_id">
+                <option value="">— выбрать —</option>
+                {% for m in team.members %}
+                <option value="{{ m.id }}" {% if adjustment.participant_id == m.id %}selected{% endif %}>{{ m.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <p class="field-group-label">Когда начислить</p>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="edit-adjust-send-date">Дата начисления</label>
+                <input type="date" id="edit-adjust-send-date" name="send_date" value="{{ send_date }}" required>
+            </div>
+            <div class="form-field">
+                <label for="edit-adjust-send-time">Время начисления</label>
+                <input type="time" id="edit-adjust-send-time" name="send_time" value="{{ send_time }}" required>
+            </div>
+        </div>
+        {% else %}
         <label class="checkbox-row" style="margin-bottom: 0.9rem;">
             <input type="checkbox" name="notify" value="true"> Отправить исправленный текст команде ещё раз
         </label>
+        {% endif %}
 
         <button type="submit" class="action-button action-button--approve">{{ icons.svg("check", 15) }} Сохранить</button>
     </form>
