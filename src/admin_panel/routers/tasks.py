@@ -353,13 +353,15 @@ async def reset_dispatch_points(
     task_id: int,
     dispatch_id: int,
     request: Request,
-    notify: bool = Form(default=True),
+    notify: bool = Form(default=False),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     """Обнуляет уже начисленные баллы за сдачу — например, участник прикрепил не то
     вложение, что требовалось по условию. Баллы всегда становятся 0, а уведомление
-    с объяснением причины опционально (по умолчанию включено — чекбокс в форме)."""
+    с объяснением причины опционально (чекбокс в форме отмечен по умолчанию — но
+    непроставленный чекбокс браузер вообще не отправляет, поэтому default здесь
+    обязан быть False, иначе снятая галочка не отличалась бы от отправленной)."""
     async with async_session_factory() as session:
         dispatch = await get_dispatch(session, dispatch_id)
         task = await get_task(session, task_id)
