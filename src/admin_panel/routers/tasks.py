@@ -353,13 +353,13 @@ async def reset_dispatch_points(
     task_id: int,
     dispatch_id: int,
     request: Request,
+    notify: bool = Form(default=True),
     admin: AdminUser = Depends(get_current_admin),
     _: None = Depends(csrf_protect),
 ) -> RedirectResponse:
     """Обнуляет уже начисленные баллы за сдачу — например, участник прикрепил не то
-    вложение, что требовалось по условию. В отличие от score_dispatch (там баллы
-    произвольные и уведомление опционально), здесь баллы всегда 0 и уведомление
-    с объяснением причины отправляется всегда — это и есть смысл действия."""
+    вложение, что требовалось по условию. Баллы всегда становятся 0, а уведомление
+    с объяснением причины опционально (по умолчанию включено — чекбокс в форме)."""
     async with async_session_factory() as session:
         dispatch = await get_dispatch(session, dispatch_id)
         task = await get_task(session, task_id)
@@ -367,14 +367,15 @@ async def reset_dispatch_points(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         await set_dispatch_points(session, dispatch=dispatch, points=0)
         await session.commit()
-        contacts = await dispatch_contacts(session, dispatch)
+        contacts = await dispatch_contacts(session, dispatch) if notify else []
 
-    bot: Bot = request.app.state.bot
-    for telegram_id, language in contacts:
-        lang = resolve_lang(language)
-        await notify_user(
-            bot, telegram_id, t(lang, "task_points_reset_wrong_attachment", title=task.title)
-        )
+    if notify:
+        bot: Bot = request.app.state.bot
+        for telegram_id, language in contacts:
+            lang = resolve_lang(language)
+            await notify_user(
+                bot, telegram_id, t(lang, "task_points_reset_wrong_attachment", title=task.title)
+            )
 
     return RedirectResponse(f"/tasks/{task_id}", status_code=status.HTTP_303_SEE_OTHER)
 
